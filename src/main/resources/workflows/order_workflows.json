@@ -1,0 +1,310 @@
+{
+  "ORDER_LAST": {
+    "ownership": "verify_order_ownership",
+    "workflow": "ORDER_LAST",
+    "description": "Fetch the customer's most recent order.",
+    "input": {
+      "customer_id": "required"
+    },
+    "steps": [
+      {
+        "id": "fetch_last",
+        "tool": "shopify.get_last_order",
+        "input": {
+          "customer_id": "$input.customer_id"
+        }
+      }
+    ],
+    "output": {
+      "order_id": "$fetch_last.order.id",
+      "order": "$fetch_last.order"
+    }
+  },
+  "ORDER_FETCH": {
+    "workflow": "ORDER_FETCH",
+    "description": "Fetch a specific order by reference (order number, name, or id).",
+    "input": {
+      "customer_id": "required",
+      "order_reference": "required"
+    },
+    "steps": [
+      {
+        "id": "resolve_order",
+        "workflow": "ORDER_FETCHING",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "order_reference": "$input.order_reference"
+        },
+        "output": {
+          "order_id": "$result.order_id",
+          "order": "$result.order"
+        }
+      }
+    ],
+    "output": {
+      "order_id": "$resolve_order.order_id",
+      "order": "$resolve_order.order"
+    }
+  },
+  "ORDER_HISTORY": {
+    "workflow": "ORDER_HISTORY",
+    "description": "Alias workflow for retrieving a customer's order history (delegates to CUSTOMER_ORDER_HISTORY).",
+    "input": {
+      "customer_id": "required",
+      "date_range": "optional",
+      "status_filter": "optional",
+      "limit": "optional"
+    },
+    "steps": [
+      {
+        "id": "fetch_history",
+        "workflow": "CUSTOMER_ORDER_HISTORY",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "date_range": "$input.date_range",
+          "status_filter": "$input.status_filter",
+          "limit": "$input.limit"
+        },
+        "output": {
+          "orders": "$result.orders",
+          "count": "$result.count"
+        }
+      }
+    ],
+    "output": {
+      "orders": "$fetch_history.orders",
+      "count": "$fetch_history.count"
+    }
+  },
+  "ORDER_DETAILS": {
+    "workflow": "ORDER_DETAILS",
+    "description": "Fetch full order details (line items, totals, addresses, status).",
+    "input": {
+      "customer_id": "required",
+      "order_reference": "optional"
+    },
+    "steps": [
+      {
+        "id": "resolve_order",
+        "workflow": "ORDER_FETCHING",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "order_reference": "$input.order_reference"
+        },
+        "output": {
+          "order_id": "$result.order_id",
+          "order": "$result.order"
+        }
+      },
+      {
+        "id": "fetch",
+        "tool": "shopify.get_order_details",
+        "input": {
+          "order": "$resolve_order.order"
+        }
+      }
+    ],
+    "output": {
+      "order_id": "$resolve_order.order_id",
+      "details": "$fetch.result"
+    }
+  },
+  "ORDER_ITEMS": {
+    "workflow": "ORDER_ITEMS",
+    "description": "Fetch the line items on an order.",
+    "input": {
+      "customer_id": "required",
+      "order_reference": "optional"
+    },
+    "steps": [
+      {
+        "id": "resolve_order",
+        "workflow": "ORDER_FETCHING",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "order_reference": "$input.order_reference"
+        },
+        "output": {
+          "order_id": "$result.order_id",
+          "order": "$result.order"
+        }
+      },
+      {
+        "id": "fetch",
+        "tool": "shopify.get_order_line_items",
+        "input": {
+          "order": "$resolve_order.order"
+        }
+      }
+    ],
+    "output": {
+      "order_id": "$resolve_order.order_id",
+      "items": "$fetch.result"
+    }
+  },
+  "ORDER_STATUS": {
+    "workflow": "ORDER_STATUS",
+    "description": "Fetch the current status of an order.",
+    "input": {
+      "customer_id": "required",
+      "order_reference": "optional"
+    },
+    "steps": [
+      {
+        "id": "resolve_order",
+        "workflow": "ORDER_FETCHING",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "order_reference": "$input.order_reference"
+        },
+        "output": {
+          "order_id": "$result.order_id",
+          "order": "$result.order"
+        }
+      },
+      {
+        "id": "fetch",
+        "tool": "shopify.get_order_status",
+        "input": {
+          "order": "$resolve_order.order"
+        }
+      }
+    ],
+    "output": {
+      "order_id": "$resolve_order.order_id",
+      "status": "$fetch.result"
+    }
+  },
+  "ORDER_FULFILLMENT": {
+    "workflow": "ORDER_FULFILLMENT",
+    "description": "Fetch fulfillment details for an order (fulfilled/unfulfilled items, fulfillment location).",
+    "input": {
+      "customer_id": "required",
+      "order_reference": "optional"
+    },
+    "steps": [
+      {
+        "id": "resolve_order",
+        "workflow": "ORDER_FETCHING",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "order_reference": "$input.order_reference"
+        },
+        "output": {
+          "order_id": "$result.order_id",
+          "order": "$result.order"
+        }
+      },
+      {
+        "id": "fetch",
+        "tool": "shopify.get_order_fulfillments",
+        "input": {
+          "order": "$resolve_order.order"
+        }
+      }
+    ],
+    "output": {
+      "order_id": "$resolve_order.order_id",
+      "fulfillments": "$fetch.result"
+    }
+  },
+  "ORDER_TRACKING": {
+    "workflow": "ORDER_TRACKING",
+    "description": "Fetch tracking numbers and carrier tracking URLs for an order's shipments.",
+    "input": {
+      "customer_id": "required",
+      "order_reference": "optional"
+    },
+    "steps": [
+      {
+        "id": "resolve_order",
+        "workflow": "ORDER_FETCHING",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "order_reference": "$input.order_reference"
+        },
+        "output": {
+          "order_id": "$result.order_id",
+          "order": "$result.order"
+        }
+      },
+      {
+        "id": "fetch",
+        "tool": "shopify.get_order_tracking",
+        "input": {
+          "order": "$resolve_order.order"
+        }
+      }
+    ],
+    "output": {
+      "order_id": "$resolve_order.order_id",
+      "tracking": "$fetch.result"
+    }
+  },
+  "ORDER_PAYMENT": {
+    "workflow": "ORDER_PAYMENT",
+    "description": "Fetch payment details for an order (method, status, amounts).",
+    "input": {
+      "customer_id": "required",
+      "order_reference": "optional"
+    },
+    "steps": [
+      {
+        "id": "resolve_order",
+        "workflow": "ORDER_FETCHING",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "order_reference": "$input.order_reference"
+        },
+        "output": {
+          "order_id": "$result.order_id",
+          "order": "$result.order"
+        }
+      },
+      {
+        "id": "fetch",
+        "tool": "shopify.get_order_payment_details",
+        "input": {
+          "order": "$resolve_order.order"
+        }
+      }
+    ],
+    "output": {
+      "order_id": "$resolve_order.order_id",
+      "payment": "$fetch.result"
+    }
+  },
+  "ORDER_SHIPPING": {
+    "workflow": "ORDER_SHIPPING",
+    "description": "Fetch shipping details for an order (method, address, cost, ETA).",
+    "input": {
+      "customer_id": "required",
+      "order_reference": "optional"
+    },
+    "steps": [
+      {
+        "id": "resolve_order",
+        "workflow": "ORDER_FETCHING",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "order_reference": "$input.order_reference"
+        },
+        "output": {
+          "order_id": "$result.order_id",
+          "order": "$result.order"
+        }
+      },
+      {
+        "id": "fetch",
+        "tool": "shopify.get_order_shipping_details",
+        "input": {
+          "order": "$resolve_order.order"
+        }
+      }
+    ],
+    "output": {
+      "order_id": "$resolve_order.order_id",
+      "shipping": "$fetch.result"
+    }
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "higher_intent": "store_general",
+  "description": "General storefront metadata.",
+  "tool_count": 2,
+  "tools": [
+    {
+      "name": "get_store_info",
+      "category": "1. Store Information",
+      "sub_intent": "store_info",
+      "description": "Return store name, domains, business hours, support contact, currency, timezone.",
+      "invoke_when": "Customer asks general store questions (hours, contact, about us).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "description": "tenant_id"
+          }
+        },
+        "required": [
+          "tenant_id"
+        ]
+      },
+      "outputs": "Store profile object",
+      "failure_scenarios": "Tenant not found/misconfigured",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Direct factual answer.",
+      "related_tools": [
+        "get_contact_info",
+        "get_store_policies"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query shop",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [],
+          "optional": [
+            {
+              "name": "fields via GraphQL selection set (name, contactEmail, currencyCode, primaryDomain, ianaTimezone)",
+              "type": "selection set",
+              "description": "Fields to include in the shop query"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get_operating_hours",
+      "category": "1. Store Information",
+      "sub_intent": "store_info",
+      "description": "Return current open/closed status and holiday hours.",
+      "invoke_when": "Customer asks if store/support is open now.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "description": "tenant_id"
+          },
+          "timezone_override": {
+            "type": "string",
+            "description": "timezone_override"
+          }
+        },
+        "required": [
+          "tenant_id"
+        ]
+      },
+      "outputs": "Hours + open/closed flag",
+      "failure_scenarios": "Holiday calendar not synced",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "States open/closed and next open time.",
+      "related_tools": [
+        "get_store_info"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Internal Service",
+        "http_method": "GET",
+        "operation": "tenant-config/hours",
+        "api_version": "n/a",
+        "endpoint": "internal config service (not a Shopify API)",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "tenant_id",
+              "type": "string",
+              "description": "Merchant/tenant identifier"
+            }
+          ],
+          "optional": []
+        }
+      }
+    }
+  ]
+}

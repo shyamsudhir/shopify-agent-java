@@ -1,0 +1,724 @@
+{
+  "higher_intent": "products",
+  "description": "Catalog discovery: search, browsing,  comparison, detail lookup, and availability, Show stock spread across warehouses/stores",
+  "tool_count": 12,
+  "tools": [
+    {
+      "name": "search_products",
+      "category": "2. Products",
+      "sub_intent": "product_search",
+      "description": "Keyword/faceted product search.",
+      "invoke_when": "Customer describes a product need or searches by name.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "query"
+          },
+          "max_price": {
+            "type": "number",
+            "description": "max_price"
+          },
+          "category": {
+            "type": "string",
+            "description": "category"
+          },
+          "tags": {
+            "type": "string",
+            "description": "tags"
+          },
+          "in_stock_only": {
+            "type": "boolean",
+            "description": "in_stock_only"
+          },
+          "sort": {
+            "type": "string",
+            "description": "sort"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "outputs": "List of product summaries",
+      "failure_scenarios": "No matches; catalog API timeout",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Presents product options with images/prices.",
+      "related_tools": [
+        "get_product",
+        "recommend_products",
+        "check_product_availability"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query products(first, query, sortKey)",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "query",
+              "type": "string",
+              "description": "Search filter string, e.g. \"title:*running shoes* AND status:active\""
+            }
+          ],
+          "optional": [
+            {
+              "name": "first",
+              "type": "int",
+              "description": "Page size, default 10"
+            },
+            {
+              "name": "sortKey",
+              "type": "enum",
+              "description": "RELEVANCE, PRICE, TITLE, etc."
+            },
+            {
+              "name": "after",
+              "type": "string",
+              "description": "Pagination cursor"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "global_search",
+      "category": "5. Search (Cross-Entity)",
+      "sub_intent": "product_search",
+      "description": "Federated search across products, FAQs, policies, and blog content.",
+      "invoke_when": "Ambiguous query that could be product or informational.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "query"
+          },
+          "entity_types": {
+            "type": "string",
+            "description": "entity_types"
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "outputs": "Ranked mixed-type results",
+      "failure_scenarios": "Search index stale",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Routes to best-fit answer type.",
+      "related_tools": [
+        "search_products",
+        "search_faq",
+        "search_policies"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Internal Service",
+        "http_method": "POST",
+        "operation": "RAG/vector index query, optionally fanned out to product/content GraphQL calls",
+        "api_version": "n/a",
+        "endpoint": "internal search/RAG service; may call search_products, search_faq, get_store_policies internally",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "query",
+              "type": "string",
+              "description": "Free-text query"
+            }
+          ],
+          "optional": [
+            {
+              "name": "entity_types",
+              "type": "[string]",
+              "description": "Restrict to product, faq, policy, blog"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "recommend_products",
+      "category": "2. Products",
+      "sub_intent": "product_discovery",
+      "description": "AI-curated suggestions for a use case (gift, occasion, need).",
+      "invoke_when": "Customer asks 'what should I buy for X' rather than searching by name.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "use_case": {
+            "type": "string",
+            "description": "use_case"
+          },
+          "budget": {
+            "type": "string",
+            "description": "budget"
+          },
+          "recipient_profile": {
+            "type": "string",
+            "description": "recipient_profile"
+          }
+        },
+        "required": [
+          "use_case"
+        ]
+      },
+      "outputs": "Ranked product list with rationale",
+      "failure_scenarios": "Sparse catalog metadata yields poor matches",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Presents 2-4 curated picks with reasoning.",
+      "related_tools": [
+        "search_products",
+        "get_product"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "POST",
+        "operation": "Recommendation engine endpoint (e.g. Shopify Search & Discovery app, Nosto, Rebuy)",
+        "api_version": "app-specific",
+        "endpoint": "app-provided REST/GraphQL endpoint",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "use_case_query",
+              "type": "string",
+              "description": "Free-text need/occasion"
+            }
+          ],
+          "optional": [
+            {
+              "name": "budget_max",
+              "type": "number",
+              "description": "Ceiling price"
+            },
+            {
+              "name": "customer_id",
+              "type": "string",
+              "description": "For personalized ranking"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "list_collections",
+      "category": "3. Collections",
+      "sub_intent": "product_discovery",
+      "description": "List available collections/categories.",
+      "invoke_when": "Customer wants to browse by category.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "string",
+            "description": "limit"
+          }
+        },
+        "required": []
+      },
+      "outputs": "Collection list",
+      "failure_scenarios": "None",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Presents category list.",
+      "related_tools": [
+        "get_collection_products"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query collections(first)",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [],
+          "optional": [
+            {
+              "name": "first",
+              "type": "int",
+              "description": "Page size"
+            },
+            {
+              "name": "query",
+              "type": "string",
+              "description": "Filter, e.g. title match"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get_collection_products",
+      "category": "3. Collections",
+      "sub_intent": "product_discovery",
+      "description": "Products within a named collection.",
+      "invoke_when": "Customer references a collection ('new arrivals', 'sale items').",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "collection_id_or_title": {
+            "type": "string",
+            "description": "collection_id_or_title"
+          },
+          "limit": {
+            "type": "string",
+            "description": "limit"
+          },
+          "sort": {
+            "type": "string",
+            "description": "sort"
+          },
+          "max_price": {
+            "type": "number",
+            "description": "max_price"
+          }
+        },
+        "required": [
+          "collection_id_or_title"
+        ]
+      },
+      "outputs": "Product list",
+      "failure_scenarios": "Collection empty/unpublished",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Presents products in that collection.",
+      "related_tools": [
+        "search_products",
+        "list_collections"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query collection(id) { products(first, sortKey) }",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "id",
+              "type": "ID",
+              "description": "Collection GID"
+            }
+          ],
+          "optional": [
+            {
+              "name": "first",
+              "type": "int",
+              "description": "Page size"
+            },
+            {
+              "name": "sortKey",
+              "type": "enum",
+              "description": "BEST_SELLING, PRICE, CREATED, etc."
+            },
+            {
+              "name": "filters",
+              "type": "[ProductFilter]",
+              "description": "e.g. max price"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get_product",
+      "category": "2. Products",
+      "sub_intent": "product_details",
+      "description": "Full product detail: price, variants, description, images, metafields.",
+      "invoke_when": "Customer references a specific product by name/ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "product_id_or_title": {
+            "type": "string",
+            "description": "product_id_or_title"
+          }
+        },
+        "required": [
+          "product_id_or_title"
+        ]
+      },
+      "outputs": "Full product object",
+      "failure_scenarios": "Product not found/archived/draft-hidden",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Detailed product card.",
+      "related_tools": [
+        "check_product_availability",
+        "search_products"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query product(id) or productByHandle(handle)",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "id",
+              "type": "ID (gid://shopify/Product/…)",
+              "description": "Product GID — resolved from title via search_products if only a title is given"
+            }
+          ],
+          "optional": [
+            {
+              "name": "selection set",
+              "type": "fields",
+              "description": "variants, images, descriptionHtml, metafields, priceRangeV2"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get_size_fit_guide",
+      "category": "2. Products",
+      "sub_intent": "product_details",
+      "description": "sizing chart / fit guidance for apparel-type products.",
+      "invoke_when": "Customer asks about sizing/fit.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "product_id_or_category": {
+            "type": "string",
+            "description": "product_id_or_category"
+          }
+        },
+        "required": [
+          "product_id_or_category"
+        ]
+      },
+      "outputs": "Size chart data or fit notes",
+      "failure_scenarios": "No sizing metafield configured",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Shares chart or fit tips.",
+      "related_tools": [
+        "get_product",
+        "initiate_exchange"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query product(id) { metafield(namespace:\"custom\", key:\"size_chart\") }",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "id",
+              "type": "ID",
+              "description": "Product GID"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "get_product_reviews_summary",
+      "category": "2. Products",
+      "sub_intent": "product_details",
+      "description": "Aggregate rating + summarized themes for a product.",
+      "invoke_when": "Customer asks about quality/reviews before buying.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "product_id": {
+            "type": "string",
+            "description": "product_id"
+          },
+          "limit": {
+            "type": "string",
+            "description": "limit"
+          }
+        },
+        "required": [
+          "product_id"
+        ]
+      },
+      "outputs": "Rating average, count, theme summary",
+      "failure_scenarios": "No reviews app connected",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Shares rating and highlights.",
+      "related_tools": [
+        "get_product"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "GET",
+        "operation": "Reviews app product-rating endpoint (e.g. Judge.me GET /api/v1/reviews, Yotpo GET /v1/products/{id}/reviews)",
+        "api_version": "app-specific",
+        "endpoint": "app-provided REST endpoint",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "product_id",
+              "type": "string",
+              "description": "Product identifier as known to the reviews app"
+            }
+          ],
+          "optional": [
+            {
+              "name": "limit",
+              "type": "int",
+              "description": "Max reviews to sample for the summary"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "compare_products",
+      "category": "2. Products",
+      "sub_intent": "product_compare",
+      "description": "Side-by-side spec/price comparison of 2-4 products.",
+      "invoke_when": "Customer is deciding between named products.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "product_ids": {
+            "type": "string",
+            "description": "product_ids (2-4)"
+          },
+          "comparison_attributes": {
+            "type": "string",
+            "description": "comparison_attributes"
+          }
+        },
+        "required": [
+          "product_ids"
+        ]
+      },
+      "outputs": "Comparison table",
+      "failure_scenarios": "Products span incompatible categories",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Renders comparison table.",
+      "related_tools": [
+        "get_product"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query nodes(ids: [ID!])",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "ids",
+              "type": "[ID!]",
+              "description": "2-4 product GIDs"
+            }
+          ],
+          "optional": [
+            {
+              "name": "selection set",
+              "type": "fields",
+              "description": "Attributes to compare"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "check_product_availability",
+      "category": "4. Inventory",
+      "sub_intent": "product_availability",
+      "description": "Check stock for a specific variant.",
+      "invoke_when": "Before recommending purchase, or customer asks 'is X in stock'.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "product_id_or_title": {
+            "type": "string",
+            "description": "product_id_or_title"
+          },
+          "variant_descriptor": {
+            "type": "string",
+            "description": "variant_descriptor"
+          },
+          "location_id": {
+            "type": "string",
+            "description": "location_id"
+          }
+        },
+        "required": [
+          "product_id_or_title",
+          "variant_descriptor"
+        ]
+      },
+      "outputs": "In-stock boolean, quantity band, ETA if backordered",
+      "failure_scenarios": "Variant ambiguous (multiple matches)",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "States stock status; offers alternative if OOS.",
+      "related_tools": [
+        "get_product",
+        "notify_when_back_in_stock"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query productVariant(id) { inventoryQuantity, inventoryItem { inventoryLevels(first) { available } } }",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "id",
+              "type": "ID",
+              "description": "ProductVariant GID (resolved from title + variant_descriptor)"
+            }
+          ],
+          "optional": [
+            {
+              "name": "locationId",
+              "type": "ID",
+              "description": "Restrict to a specific inventory location"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "notify_when_back_in_stock",
+      "category": "4. Inventory",
+      "sub_intent": "product_availability",
+      "description": "Register customer for restock alert.",
+      "invoke_when": "Item is out of stock and customer wants to be notified.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_email": {
+            "type": "string",
+            "description": "customer_email"
+          },
+          "variant_id": {
+            "type": "string",
+            "description": "variant_id"
+          },
+          "channel": {
+            "type": "string",
+            "description": "channel (email/sms)"
+          }
+        },
+        "required": [
+          "customer_email",
+          "variant_id"
+        ]
+      },
+      "outputs": "Subscription confirmation",
+      "failure_scenarios": "Restock notification app not installed",
+      "read_or_write": "write",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms alert will be sent.",
+      "related_tools": [
+        "check_product_availability"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "POST",
+        "operation": "Back-in-stock app subscribe endpoint (e.g. Klaviyo back-in-stock, \"Back in Stock\" app API)",
+        "api_version": "app-specific",
+        "endpoint": "app-provided REST endpoint",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "email",
+              "type": "string",
+              "description": "Customer email"
+            },
+            {
+              "name": "variant_id",
+              "type": "string",
+              "description": "Shopify ProductVariant GID or numeric ID"
+            }
+          ],
+          "optional": [
+            {
+              "name": "channel",
+              "type": "string",
+              "description": "email | sms"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "check_inventory_across_locations",
+      "category": "4. Inventory",
+      "sub_intent": "product_availability",
+      "description": "Show stock spread across warehouses/stores (for pickup or transfer questions).",
+      "invoke_when": "Customer asks about local pickup stock or multi-location availability.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "product_id_or_title": {
+            "type": "string",
+            "description": "product_id_or_title"
+          },
+          "region_or_zip": {
+            "type": "string",
+            "description": "region or zip code"
+          }
+        },
+        "required": [
+          "product_id_or_title"
+        ]
+      },
+      "outputs": "Per-location quantities",
+      "failure_scenarios": "Multi-location inventory not enabled on plan",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Lists nearby locations with stock.",
+      "related_tools": [
+        "find_nearest_store",
+        "check_pickup_availability"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query productVariant(id) { inventoryItem { inventoryLevels(first) { location { id, name }, available } } }",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "id",
+              "type": "ID",
+              "description": "ProductVariant GID"
+            }
+          ],
+          "optional": [
+            {
+              "name": "first",
+              "type": "int",
+              "description": "Max locations to return"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

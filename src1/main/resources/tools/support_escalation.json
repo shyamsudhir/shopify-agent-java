@@ -1,0 +1,537 @@
+{
+  "higher_intent": "support_escalation",
+  "description": "Human handoff, complaints, live chat transfer, self-facing analytics, and misc utilities.",
+  "tool_count": 10,
+  "tools": [
+    {
+      "name": "escalate_to_human",
+      "category": "49. Support Escalation",
+      "sub_intent": "escalation",
+      "description": "Hand the conversation off to a human support agent.",
+      "invoke_when": "Customer explicitly asks for a human, request is outside tool coverage, repeated failed attempts, or policy requires human review (e.g. large refund, legal threat).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_email": {
+            "type": "string",
+            "description": "customer_email"
+          },
+          "reason": {
+            "type": "string",
+            "description": "reason"
+          },
+          "conversation_summary": {
+            "type": "string",
+            "description": "conversation_summary"
+          },
+          "priority": {
+            "type": "string",
+            "description": "priority"
+          },
+          "department": {
+            "type": "string",
+            "description": "department"
+          }
+        },
+        "required": [
+          "customer_email",
+          "reason",
+          "conversation_summary"
+        ]
+      },
+      "outputs": "Ticket ID / live handoff confirmation",
+      "failure_scenarios": "No human agents available (after-hours) — falls back to ticket queue",
+      "read_or_write": "write",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms handoff and expected response time.",
+      "related_tools": [
+        "file_complaint",
+        "flag_account_security"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "POST",
+        "operation": "Helpdesk ticket-creation endpoint (e.g. Zendesk POST /api/v2/tickets, Gorgias POST /api/tickets) or Shopify Inbox handoff",
+        "api_version": "provider-specific",
+        "endpoint": "helpdesk REST endpoint",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "customer_email",
+              "type": "string"
+            },
+            {
+              "name": "reason",
+              "type": "string"
+            },
+            {
+              "name": "conversation_summary",
+              "type": "string"
+            }
+          ],
+          "optional": [
+            {
+              "name": "priority",
+              "type": "string"
+            },
+            {
+              "name": "department",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "file_complaint",
+      "category": "49. Support Escalation",
+      "sub_intent": "escalation",
+      "description": "File a formal complaint on the customer's behalf.",
+      "invoke_when": "Customer wants a documented complaint distinct from a simple support request.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_email": {
+            "type": "string",
+            "description": "customer_email"
+          },
+          "description": {
+            "type": "string",
+            "description": "description"
+          },
+          "order_number": {
+            "type": "string",
+            "description": "order_number"
+          }
+        },
+        "required": [
+          "customer_email",
+          "description"
+        ]
+      },
+      "outputs": "Complaint case ID",
+      "failure_scenarios": "Duplicate complaint already open for same issue",
+      "read_or_write": "write",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms complaint logged and next steps.",
+      "related_tools": [
+        "escalate_to_human",
+        "issue_refund"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "POST",
+        "operation": "Helpdesk/CRM ticket-creation endpoint tagged as formal complaint",
+        "api_version": "provider-specific",
+        "endpoint": "helpdesk REST endpoint",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "customer_email",
+              "type": "string"
+            },
+            {
+              "name": "description",
+              "type": "string"
+            }
+          ],
+          "optional": [
+            {
+              "name": "order_id",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "check_escalation_status",
+      "category": "49. Support Escalation",
+      "sub_intent": "escalation",
+      "description": "Check status of a previously filed ticket/complaint.",
+      "invoke_when": "Customer follows up on an existing escalation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "ticket_id_or_customer_email": {
+            "type": "string",
+            "description": "ticket_id or customer_email"
+          }
+        },
+        "required": [
+          "ticket_id_or_customer_email"
+        ]
+      },
+      "outputs": "Ticket status, last update",
+      "failure_scenarios": "Ticket closed without resolution note",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Shares current status.",
+      "related_tools": [
+        "escalate_to_human",
+        "file_complaint"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "GET",
+        "operation": "Helpdesk ticket status endpoint (e.g. Zendesk GET /api/v2/tickets/{id})",
+        "api_version": "provider-specific",
+        "endpoint": "helpdesk REST endpoint",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "ticket_id_or_customer_email",
+              "type": "string"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "transfer_to_live_agent",
+      "category": "50. Live Chat Handoff",
+      "sub_intent": "live_chat",
+      "description": "Transfer the active chat session to a queued human agent in real time.",
+      "invoke_when": "Customer needs immediate human help and live agents are available.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "description": "conversation_id"
+          },
+          "customer_email": {
+            "type": "string",
+            "description": "customer_email"
+          },
+          "priority": {
+            "type": "string",
+            "description": "priority"
+          }
+        },
+        "required": [
+          "conversation_id",
+          "customer_email"
+        ]
+      },
+      "outputs": "Queue position / agent connection confirmation",
+      "failure_scenarios": "No agents online (routes to async ticket instead)",
+      "read_or_write": "write",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms transfer and estimated wait time.",
+      "related_tools": [
+        "escalate_to_human"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "POST",
+        "operation": "Live chat platform transfer endpoint (e.g. Zendesk Chat, Intercom conversation handoff)",
+        "api_version": "provider-specific",
+        "endpoint": "live chat platform REST/websocket endpoint",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "conversation_id",
+              "type": "string"
+            },
+            {
+              "name": "customer_email",
+              "type": "string"
+            }
+          ],
+          "optional": [
+            {
+              "name": "priority",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get_queue_wait_estimate",
+      "category": "50. Live Chat Handoff",
+      "sub_intent": "live_chat",
+      "description": "Estimate current live-agent wait time before transferring.",
+      "invoke_when": "Before transferring, to set expectations, or customer asks how long the wait is.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "department": {
+            "type": "string",
+            "description": "department"
+          }
+        },
+        "required": []
+      },
+      "outputs": "Estimated wait time",
+      "failure_scenarios": "Queue metrics unavailable",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Shares wait estimate before/after transfer.",
+      "related_tools": [
+        "transfer_to_live_agent"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "GET",
+        "operation": "Live chat platform queue-metrics endpoint",
+        "api_version": "provider-specific",
+        "endpoint": "live chat platform REST endpoint",
+        "request_parameters": {
+          "required": [],
+          "optional": [
+            {
+              "name": "department",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get_purchase_history_summary",
+      "category": "53. Analytics (Customer-Facing)",
+      "sub_intent": "analytics",
+      "description": "Summarize a customer's order history (frequency, total spend, favorite categories).",
+      "invoke_when": "Customer asks about their own buying history/patterns (e.g. for tax, budgeting, or curiosity).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_email": {
+            "type": "string",
+            "description": "customer_email"
+          },
+          "date_range": {
+            "type": "string",
+            "description": "date_range"
+          }
+        },
+        "required": [
+          "customer_email"
+        ]
+      },
+      "outputs": "Summary stats + notable orders",
+      "failure_scenarios": "Long history requires pagination/aggregation limits",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Shares summarized stats.",
+      "related_tools": [
+        "list_recent_orders",
+        "get_loyalty_balance"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query customer(id) { orders(first) { totalPriceSet, processedAt, lineItems(first){title} } } — aggregated post-fetch",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "customer_email",
+              "type": "string"
+            }
+          ],
+          "optional": [
+            {
+              "name": "date_range",
+              "type": "object"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get_carbon_footprint_estimate",
+      "category": "53. Analytics (Customer-Facing)",
+      "sub_intent": "analytics",
+      "description": "Share sustainability/shipping-impact estimate for an order, if the store publishes this.",
+      "invoke_when": "Customer asks about environmental impact of their order (common in sustainability-branded stores).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "order_number": {
+            "type": "string",
+            "description": "order_number"
+          }
+        },
+        "required": [
+          "order_number"
+        ]
+      },
+      "outputs": "Estimated impact metric",
+      "failure_scenarios": "Sustainability app not integrated",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Shares estimate with methodology note.",
+      "related_tools": [
+        "get_order"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "GET",
+        "operation": "Sustainability app estimate endpoint (e.g. EcoCart GET /orders/{id}/impact, Cloverly)",
+        "api_version": "app-specific",
+        "endpoint": "app-provided REST endpoint",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "order_id",
+              "type": "string"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "submit_feedback",
+      "category": "54. Miscellaneous",
+      "sub_intent": "misc",
+      "description": "Log general product/site feedback or a suggestion from the customer.",
+      "invoke_when": "Customer offers unsolicited feedback not tied to a specific complaint.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_email": {
+            "type": "string",
+            "description": "customer_email"
+          },
+          "feedback": {
+            "type": "string",
+            "description": "feedback"
+          }
+        },
+        "required": [
+          "customer_email",
+          "feedback"
+        ]
+      },
+      "outputs": "Submission confirmation",
+      "failure_scenarios": "None",
+      "read_or_write": "write",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Thanks customer and confirms it's logged.",
+      "related_tools": [
+        "file_complaint"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Third-party App API / Internal Service",
+        "http_method": "POST",
+        "operation": "Helpdesk tag/note creation, or internal feedback log service",
+        "api_version": "provider-specific / internal",
+        "endpoint": "helpdesk REST endpoint or internal feedback service",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "customer_email",
+              "type": "string"
+            },
+            {
+              "name": "feedback",
+              "type": "string"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "get_conversation_transcript",
+      "category": "54. Miscellaneous",
+      "sub_intent": "misc",
+      "description": "Retrieve the current or a past support conversation transcript for the customer's own records.",
+      "invoke_when": "Customer asks for a copy of this conversation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "description": "conversation_id"
+          },
+          "email": {
+            "type": "string",
+            "description": "email (for delivery)"
+          }
+        },
+        "required": [
+          "conversation_id"
+        ]
+      },
+      "outputs": "Transcript text or emailed copy",
+      "failure_scenarios": "Transcript retention policy limits lookback window",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms transcript sent/shown.",
+      "related_tools": [
+        "escalate_to_human"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Internal Service",
+        "http_method": "GET",
+        "operation": "Internal conversation store retrieval (not a Shopify API)",
+        "api_version": "n/a",
+        "endpoint": "internal conversation-history service",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "conversation_id",
+              "type": "string"
+            }
+          ],
+          "optional": [
+            {
+              "name": "email",
+              "type": "string",
+              "description": "For emailed delivery"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "check_system_status",
+      "category": "54. Miscellaneous",
+      "sub_intent": "misc",
+      "description": "Report known site-wide incidents (checkout down, payment outage) affecting the customer's issue.",
+      "invoke_when": "Multiple customers reporting the same technical symptom; agent needs to check for a known outage.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "outputs": "Active incident list, if any",
+      "failure_scenarios": "Status page not integrated",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Proactively informs customer of known issue and ETA.",
+      "related_tools": [
+        "diagnose_checkout_error",
+        "escalate_to_human"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "GET",
+        "operation": "Status page provider endpoint (e.g. Statuspage.io GET /api/v2/summary.json) or internal ops health feed",
+        "api_version": "provider-specific",
+        "endpoint": "status page REST endpoint",
+        "request_parameters": {
+          "required": [],
+          "optional": []
+        }
+      }
+    }
+  ]
+}

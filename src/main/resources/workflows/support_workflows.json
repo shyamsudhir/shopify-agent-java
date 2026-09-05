@@ -1,0 +1,138 @@
+{
+  "CREATE_SUPPORT_TICKET": {
+    "workflow": "CREATE_SUPPORT_TICKET",
+    "description": "Create a new support ticket, attaching relevant customer/order context.",
+    "input": {
+      "customer_id": "required",
+      "subject": "required",
+      "description": "required",
+      "order_reference": "optional",
+      "priority": "optional"
+    },
+    "steps": [
+      {
+        "id": "gather_context",
+        "workflow": "SUPPORT_TICKET_CONTEXT",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "order_reference": "$input.order_reference"
+        },
+        "output": {
+          "customer": "$result.customer",
+          "order": "$result.order"
+        }
+      },
+      {
+        "id": "create_ticket",
+        "tool": "support.create_ticket",
+        "input": {
+          "customer": "$gather_context.customer",
+          "order": "$gather_context.order",
+          "subject": "$input.subject",
+          "description": "$input.description",
+          "priority": "$input.priority"
+        }
+      }
+    ],
+    "output": {
+      "ticket_id": "$create_ticket.ticket.id",
+      "ticket": "$create_ticket.ticket"
+    }
+  },
+  "UPDATE_SUPPORT_TICKET": {
+    "workflow": "UPDATE_SUPPORT_TICKET",
+    "description": "Update an existing support ticket (add note, change status/priority, reassign).",
+    "input": {
+      "ticket_id": "required",
+      "updates": "required"
+    },
+    "steps": [
+      {
+        "id": "update_ticket",
+        "tool": "support.update_ticket",
+        "input": {
+          "ticket_id": "$input.ticket_id",
+          "updates": "$input.updates"
+        }
+      }
+    ],
+    "output": {
+      "ticket": "$update_ticket.ticket"
+    }
+  },
+  "GET_SUPPORT_TICKET": {
+    "workflow": "GET_SUPPORT_TICKET",
+    "description": "Fetch the current details and status of a support ticket.",
+    "input": {
+      "ticket_id": "required"
+    },
+    "steps": [
+      {
+        "id": "fetch_ticket",
+        "tool": "support.get_ticket",
+        "input": {
+          "ticket_id": "$input.ticket_id"
+        }
+      }
+    ],
+    "output": {
+      "ticket": "$fetch_ticket.ticket"
+    }
+  },
+  "ESCALATE_TO_HUMAN": {
+    "workflow": "ESCALATE_TO_HUMAN",
+    "description": "Escalate the current conversation to a human support agent, creating a ticket if one does not already exist.",
+    "input": {
+      "customer_id": "required",
+      "reason": "required",
+      "order_reference": "optional",
+      "conversation_summary": "required",
+      "existing_ticket_id": "optional"
+    },
+    "steps": [
+      {
+        "id": "gather_context",
+        "workflow": "SUPPORT_TICKET_CONTEXT",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "order_reference": "$input.order_reference",
+          "conversation_summary": "$input.conversation_summary"
+        },
+        "output": {
+          "customer": "$result.customer",
+          "order": "$result.order"
+        }
+      },
+      {
+        "id": "create_ticket",
+        "workflow": "CREATE_SUPPORT_TICKET",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "subject": "Escalation: $input.reason",
+          "description": "$input.conversation_summary",
+          "order_reference": "$input.order_reference",
+          "priority": "high"
+        },
+        "output": {
+          "ticket_id": "$result.ticket_id"
+        },
+        "condition": "$input.existing_ticket_id == null"
+      },
+      {
+        "id": "escalate",
+        "tool": "support.escalate_to_human",
+        "input": {
+          "ticket_id": "$create_ticket.ticket_id or $input.existing_ticket_id",
+          "reason": "$input.reason",
+          "customer": "$gather_context.customer",
+          "order": "$gather_context.order"
+        }
+      }
+    ],
+    "output": {
+      "ticket_id": "$create_ticket.ticket_id",
+      "escalated": "$escalate.escalated",
+      "queue": "$escalate.queue"
+    }
+  }
+}

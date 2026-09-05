@@ -1,0 +1,810 @@
+{
+  "higher_intent": "customer_account",
+  "description": "Identity, profile, authentication, addresses, recovery, and account security.",
+  "tool_count": 14,
+  "tools": [
+    {
+      "name": "get_customer_profile",
+      "category": "15. Customers",
+      "sub_intent": "customer_profile",
+      "description": "Retrieve a customer's profile (name, email, phone, tags, order count, LTV).",
+      "invoke_when": "Agent needs context on who it's talking to.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "email"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "outputs": "Customer profile object",
+      "failure_scenarios": "No account found (guest checkout)",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Used silently for personalization, rarely shown verbatim.",
+      "related_tools": [
+        "list_recent_orders",
+        "get_loyalty_balance"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query customers(first: 1, query: \"email:…\")",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "query",
+              "type": "string",
+              "description": "e.g. \"email:jane@example.com\""
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "create_account",
+      "category": "15. Customers",
+      "sub_intent": "customer_profile",
+      "description": "Create a new customer account.",
+      "invoke_when": "Customer wants to register / checked out as guest and wants an account.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "email"
+          },
+          "first_name": {
+            "type": "string",
+            "description": "first_name"
+          },
+          "last_name": {
+            "type": "string",
+            "description": "last_name"
+          },
+          "phone": {
+            "type": "string",
+            "description": "phone"
+          },
+          "marketing_opt_in": {
+            "type": "string",
+            "description": "marketing_opt_in"
+          }
+        },
+        "required": [
+          "email",
+          "first_name",
+          "last_name"
+        ]
+      },
+      "outputs": "New customer ID + welcome confirmation",
+      "failure_scenarios": "Email already registered",
+      "read_or_write": "write",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms account creation, may prompt password setup.",
+      "related_tools": [
+        "reset_password",
+        "update_customer_profile"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "mutation customerCreate(input: CustomerInput!)",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "email",
+              "type": "string"
+            },
+            {
+              "name": "firstName",
+              "type": "string"
+            },
+            {
+              "name": "lastName",
+              "type": "string"
+            }
+          ],
+          "optional": [
+            {
+              "name": "phone",
+              "type": "string"
+            },
+            {
+              "name": "emailMarketingConsent",
+              "type": "CustomerEmailMarketingConsentInput"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "update_customer_profile",
+      "category": "15. Customers",
+      "sub_intent": "customer_profile",
+      "description": "Update profile fields (name, phone, email, marketing preference).",
+      "invoke_when": "Customer requests a profile change.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "email"
+          },
+          "updates": {
+            "type": "string",
+            "description": "updates"
+          }
+        },
+        "required": [
+          "email",
+          "updates"
+        ]
+      },
+      "outputs": "Updated profile confirmation",
+      "failure_scenarios": "Email change requires re-verification",
+      "read_or_write": "write",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms updated fields.",
+      "related_tools": [
+        "get_customer_profile"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "mutation customerUpdate(input: CustomerInput!)",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "id",
+              "type": "ID",
+              "description": "Customer GID"
+            }
+          ],
+          "optional": [
+            {
+              "name": "firstName",
+              "type": "string"
+            },
+            {
+              "name": "lastName",
+              "type": "string"
+            },
+            {
+              "name": "phone",
+              "type": "string"
+            },
+            {
+              "name": "email",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "delete_account",
+      "category": "15. Customers",
+      "sub_intent": "customer_profile",
+      "description": "Permanently delete a customer account (GDPR/CCPA erasure request).",
+      "invoke_when": "Customer explicitly requests account deletion.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "email"
+          },
+          "confirm": {
+            "type": "boolean",
+            "description": "confirmation flag set to true"
+          }
+        },
+        "required": [
+          "email",
+          "confirm"
+        ]
+      },
+      "outputs": "Deletion confirmation + data-erasure ticket",
+      "failure_scenarios": "Open orders/subscriptions block immediate deletion",
+      "read_or_write": "write",
+      "human_confirmation_required": true,
+      "customer_visible_followup": "Confirms deletion and any legal retention caveats.",
+      "related_tools": [
+        "update_customer_profile",
+        "escalate_to_human"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "mutation customerDelete(input: { id: ID! })",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "id",
+              "type": "ID",
+              "description": "Customer GID"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "merge_duplicate_accounts",
+      "category": "15. Customers",
+      "sub_intent": "customer_profile",
+      "description": "Merge two customer records (e.g. guest + registered) into one.",
+      "invoke_when": "Customer has order history split across two accounts/emails.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "primary_email": {
+            "type": "string",
+            "description": "primary_email"
+          },
+          "secondary_email": {
+            "type": "string",
+            "description": "secondary_email"
+          }
+        },
+        "required": [
+          "primary_email",
+          "secondary_email"
+        ]
+      },
+      "outputs": "Merge confirmation",
+      "failure_scenarios": "Conflicting loyalty/subscription data",
+      "read_or_write": "write",
+      "human_confirmation_required": true,
+      "customer_visible_followup": "Confirms unified history.",
+      "related_tools": [
+        "get_customer_profile"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "mutation customerMerge(customerOneId: ID!, customerTwoId: ID!, overrideFields: CustomerMergeOverrideFields)",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "customerOneId",
+              "type": "ID"
+            },
+            {
+              "name": "customerTwoId",
+              "type": "ID"
+            }
+          ],
+          "optional": [
+            {
+              "name": "overrideFields",
+              "type": "CustomerMergeOverrideFields",
+              "description": "Which record wins per-field conflicts"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "reset_password",
+      "category": "16. Customer Authentication",
+      "sub_intent": "customer_auth",
+      "description": "Send a password reset link.",
+      "invoke_when": "Customer can't log in / forgot password.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "email"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "outputs": "Email sent confirmation",
+      "failure_scenarios": "Email not associated with an account (don't reveal which)",
+      "read_or_write": "write",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms link sent, generic wording regardless of match.",
+      "related_tools": [
+        "create_account",
+        "verify_identity"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "mutation customerGenerateAccountActivationUrl(customerId: ID!) or native customer-accounts reset flow",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "email",
+              "type": "string",
+              "description": "Resolved to Customer GID first"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "verify_identity",
+      "category": "16. Customer Authentication",
+      "sub_intent": "customer_auth",
+      "description": "Multi-factor identity check before sensitive actions (order edits, account changes).",
+      "invoke_when": "Any high-risk action (address change, refund, account deletion) not yet verified this session.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "email"
+          },
+          "verification_code_or_value": {
+            "type": "string",
+            "description": "verification_code_or_value"
+          },
+          "verification_method": {
+            "type": "string",
+            "description": "verification_method"
+          }
+        },
+        "required": [
+          "email",
+          "verification_code_or_value"
+        ]
+      },
+      "outputs": "Verified boolean",
+      "failure_scenarios": "Code expired/mismatched (possible fraud)",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Silent gate; on failure, agent limits further actions.",
+      "related_tools": [
+        "flag_account_security",
+        "escalate_to_human"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Third-party App API / Internal Service",
+        "http_method": "POST",
+        "operation": "OTP provider verify endpoint (e.g. Twilio Verify) or Shopify Customer Account API session check",
+        "api_version": "provider-specific",
+        "endpoint": "OTP/auth provider endpoint",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "email_or_phone",
+              "type": "string"
+            },
+            {
+              "name": "verification_code",
+              "type": "string"
+            }
+          ],
+          "optional": [
+            {
+              "name": "verification_method",
+              "type": "enum",
+              "description": "sms | email | knowledge-based"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "resend_verification_code",
+      "category": "16. Customer Authentication",
+      "sub_intent": "customer_auth",
+      "description": "Resend an OTP/magic link for identity verification.",
+      "invoke_when": "Customer says code didn't arrive.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "email_or_phone": {
+            "type": "string",
+            "description": "email or phone"
+          },
+          "channel": {
+            "type": "string",
+            "description": "channel"
+          }
+        },
+        "required": [
+          "email_or_phone"
+        ]
+      },
+      "outputs": "Resend confirmation",
+      "failure_scenarios": "Rate-limited (too many resends)",
+      "read_or_write": "write",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms resend and rate-limit notice if applicable.",
+      "related_tools": [
+        "verify_identity"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "POST",
+        "operation": "OTP provider send/resend endpoint (e.g. Twilio Verify POST /Verifications)",
+        "api_version": "provider-specific",
+        "endpoint": "OTP/auth provider endpoint",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "email_or_phone",
+              "type": "string"
+            }
+          ],
+          "optional": [
+            {
+              "name": "channel",
+              "type": "string",
+              "description": "sms | email"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "manage_saved_address",
+      "category": "17. Addresses",
+      "sub_intent": "customer_address",
+      "description": "Add, remove, or set-default a saved address.",
+      "invoke_when": "Customer wants to add/update/remove an address book entry.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "email"
+          },
+          "action": {
+            "type": "string",
+            "description": "action"
+          },
+          "address": {
+            "type": "string",
+            "description": "address"
+          },
+          "address_id": {
+            "type": "string",
+            "description": "address_id"
+          }
+        },
+        "required": [
+          "email",
+          "action"
+        ]
+      },
+      "outputs": "Updated address list",
+      "failure_scenarios": "Invalid/incomplete address (fails carrier validation)",
+      "read_or_write": "write",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms address book change.",
+      "related_tools": [
+        "update_shipping_address"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "mutation customerAddressCreate / customerAddressUpdate / customerAddressDelete / customerDefaultAddressUpdate",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "customerId",
+              "type": "ID"
+            },
+            {
+              "name": "action",
+              "type": "enum",
+              "description": "add | remove | set_default"
+            }
+          ],
+          "optional": [
+            {
+              "name": "address",
+              "type": "MailingAddressInput",
+              "description": "Required for add/update"
+            },
+            {
+              "name": "addressId",
+              "type": "ID",
+              "description": "Required for remove/set_default"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "validate_address",
+      "category": "17. Addresses",
+      "sub_intent": "customer_address",
+      "description": "Check an address against carrier/postal validation before saving or shipping.",
+      "invoke_when": "Before saving a new address or updating shipping on an order.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "address"
+          }
+        },
+        "required": [
+          "address"
+        ]
+      },
+      "outputs": "Valid boolean + suggested correction",
+      "failure_scenarios": "Ambiguous/undeliverable address",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms or suggests correction.",
+      "related_tools": [
+        "manage_saved_address",
+        "update_shipping_address"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "POST",
+        "operation": "Address validation endpoint (e.g. Loqate, SmartyStreets, Google Address Validation API); not natively exposed by Shopify beyond basic client-side checks",
+        "api_version": "provider-specific",
+        "endpoint": "validation provider REST endpoint",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "address",
+              "type": "object",
+              "description": "Street, city, region, postal code, country"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "recover_account_by_order",
+      "category": "52. Account Recovery",
+      "sub_intent": "account_recovery",
+      "description": "Help a customer without login access locate/verify their account via a known order number + email.",
+      "invoke_when": "Customer has no account access but has an order confirmation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "order_number": {
+            "type": "string",
+            "description": "order_number"
+          },
+          "email": {
+            "type": "string",
+            "description": "email"
+          }
+        },
+        "required": [
+          "order_number",
+          "email"
+        ]
+      },
+      "outputs": "Account match confirmation, guided next steps",
+      "failure_scenarios": "Order not linked to any account (guest checkout)",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Guides customer through account linking or reset.",
+      "related_tools": [
+        "reset_password",
+        "create_account"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query orders(first: 1, query: \"name:#1001\") { customer { id, email } }",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "order_number",
+              "type": "string"
+            },
+            {
+              "name": "email",
+              "type": "string"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "unlock_locked_account",
+      "category": "52. Account Recovery",
+      "sub_intent": "account_recovery",
+      "description": "Unlock an account locked after repeated failed logins.",
+      "invoke_when": "Customer reports being locked out after multiple attempts.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "email"
+          },
+          "verification_value": {
+            "type": "string",
+            "description": "verification_value"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "outputs": "Unlock confirmation",
+      "failure_scenarios": "Lock is fraud-related and requires manual security review",
+      "read_or_write": "write",
+      "human_confirmation_required": true,
+      "customer_visible_followup": "Confirms unlock or explains manual review need.",
+      "related_tools": [
+        "verify_identity",
+        "flag_account_security"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API / Third-party App API",
+        "http_method": "POST",
+        "operation": "Customer Account API session/lock reset, or auth-provider unlock endpoint depending on which login system the store uses",
+        "api_version": "2025-01 / provider-specific",
+        "endpoint": "/admin/api/2025-01/graphql.json or auth provider REST endpoint",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "email",
+              "type": "string"
+            }
+          ],
+          "optional": [
+            {
+              "name": "verification_value",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "flag_account_security",
+      "category": "51. Fraud Verification",
+      "sub_intent": "account_security",
+      "description": "Flag a suspected fraud or account-security incident as high priority for the security team.",
+      "invoke_when": "Customer reports unauthorized account access, suspicious order, or a mismatched identity check fails.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_email": {
+            "type": "string",
+            "description": "customer_email"
+          },
+          "description": {
+            "type": "string",
+            "description": "description"
+          },
+          "order_number": {
+            "type": "string",
+            "description": "order_number"
+          }
+        },
+        "required": [
+          "customer_email",
+          "description"
+        ]
+      },
+      "outputs": "Security case ID",
+      "failure_scenarios": "False positive risk (needs human review either way)",
+      "read_or_write": "write",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms security team notified; may temporarily restrict self-service actions.",
+      "related_tools": [
+        "escalate_to_human",
+        "verify_identity"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Third-party App API / Internal Service",
+        "http_method": "POST",
+        "operation": "Fraud/security queue endpoint (e.g. Shopify Protect flag via Admin GraphQL orderRisk, or internal security-case service)",
+        "api_version": "2025-01 / internal",
+        "endpoint": "/admin/api/2025-01/graphql.json (order risk context) + internal security queue",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "customer_email",
+              "type": "string"
+            },
+            {
+              "name": "description",
+              "type": "string"
+            }
+          ],
+          "optional": [
+            {
+              "name": "order_id",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get_order_risk_assessment",
+      "category": "51. Fraud Verification",
+      "sub_intent": "account_security",
+      "description": "Retrieve Shopify's/third-party fraud risk score for an order.",
+      "invoke_when": "Order-related request involves a high-risk flag or chargeback dispute.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "order_number": {
+            "type": "string",
+            "description": "order_number"
+          }
+        },
+        "required": [
+          "order_number"
+        ]
+      },
+      "outputs": "Risk level, contributing factors",
+      "failure_scenarios": "Risk analysis not available for older orders",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Used internally to decide whether to require extra verification.",
+      "related_tools": [
+        "verify_identity",
+        "cancel_order"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query order(id) { risk { recommendation, assessments { riskLevel, factors } } }",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "id",
+              "type": "ID",
+              "description": "Order GID"
+            }
+          ],
+          "optional": []
+        }
+      }
+    }
+  ]
+}

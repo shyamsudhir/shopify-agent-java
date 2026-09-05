@@ -1,0 +1,643 @@
+{
+  "higher_intent": "shopping_experience",
+  "description": "Pre-purchase flow: wishlist, cart, checkout, subscriptions, pre-orders, and backorders.",
+  "tool_count": 12,
+  "tools": [
+    {
+      "name": "manage_wishlist",
+      "category": "24. Wishlists",
+      "sub_intent": "wishlist",
+      "description": "Add, remove, or view items on a customer's wishlist.",
+      "invoke_when": "Customer wants to save an item or check their saved list.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_email": {
+            "type": "string",
+            "description": "customer_email"
+          },
+          "action": {
+            "type": "string",
+            "description": "action"
+          },
+          "product_id": {
+            "type": "string",
+            "description": "product_id"
+          }
+        },
+        "required": [
+          "customer_email",
+          "action"
+        ]
+      },
+      "outputs": "Updated wishlist",
+      "failure_scenarios": "Wishlist app not installed",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms wishlist update or shows list.",
+      "related_tools": [
+        "notify_when_back_in_stock",
+        "manage_cart"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "POST/GET",
+        "operation": "Wishlist app endpoint (e.g. Shopify's native \"Wishlist\" isn't built-in; typically Swym, Wishlist King) — or Admin GraphQL metafieldsSet on customer for a homegrown list",
+        "api_version": "app-specific / 2025-01",
+        "endpoint": "app-provided REST endpoint, or mutation metafieldsSet",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "customer_email",
+              "type": "string"
+            },
+            {
+              "name": "action",
+              "type": "enum",
+              "description": "add | remove | view"
+            }
+          ],
+          "optional": [
+            {
+              "name": "product_id",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "manage_cart",
+      "category": "25. Shopping Cart",
+      "sub_intent": "cart",
+      "description": "Add, remove, update quantity, or view items in a customer's active cart.",
+      "invoke_when": "Customer wants chat-assisted cart building.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "cart_id": {
+            "type": "string",
+            "description": "cart_id"
+          },
+          "action": {
+            "type": "string",
+            "description": "action"
+          },
+          "variant_id": {
+            "type": "string",
+            "description": "variant_id"
+          },
+          "quantity": {
+            "type": "number",
+            "description": "quantity"
+          }
+        },
+        "required": [
+          "cart_id",
+          "action"
+        ]
+      },
+      "outputs": "Updated cart contents/total",
+      "failure_scenarios": "Variant sold out mid-add",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Shows updated cart.",
+      "related_tools": [
+        "apply_coupon_to_cart",
+        "get_shipping_options",
+        "generate_checkout_link"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Storefront GraphQL API (Cart)",
+        "http_method": "POST",
+        "operation": "mutation cartCreate / cartLinesAdd / cartLinesUpdate / cartLinesRemove; query cart(id) for view",
+        "api_version": "2025-01",
+        "endpoint": "/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "cartId",
+              "type": "ID",
+              "description": "Omit on first add to trigger cartCreate"
+            },
+            {
+              "name": "action",
+              "type": "enum",
+              "description": "add | remove | update_quantity | view"
+            }
+          ],
+          "optional": [
+            {
+              "name": "variantId",
+              "type": "ID"
+            },
+            {
+              "name": "quantity",
+              "type": "int",
+              "description": "Default 1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "generate_checkout_link",
+      "category": "25. Shopping Cart",
+      "sub_intent": "cart",
+      "description": "Produce a checkout URL for the customer's current cart.",
+      "invoke_when": "Cart is ready and customer wants to complete purchase.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "cart_id": {
+            "type": "string",
+            "description": "cart_id"
+          }
+        },
+        "required": [
+          "cart_id"
+        ]
+      },
+      "outputs": "Checkout URL",
+      "failure_scenarios": "Cart empty",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Shares checkout link.",
+      "related_tools": [
+        "manage_cart"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Storefront GraphQL API (Cart)",
+        "http_method": "POST",
+        "operation": "query cart(id) { checkoutUrl }",
+        "api_version": "2025-01",
+        "endpoint": "/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "cartId",
+              "type": "ID"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "diagnose_checkout_error",
+      "category": "26. Checkout",
+      "sub_intent": "checkout",
+      "description": "Explain a checkout failure (payment declined, shipping unavailable, tax calc error).",
+      "invoke_when": "Customer reports 'checkout isn't working' or an error message.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "cart_id_or_session_id": {
+            "type": "string",
+            "description": "cart_id or session_id"
+          },
+          "error_context": {
+            "type": "string",
+            "description": "error_context"
+          }
+        },
+        "required": [
+          "cart_id_or_session_id",
+          "error_context"
+        ]
+      },
+      "outputs": "Likely cause + remediation steps",
+      "failure_scenarios": "Insufficient logging/telemetry for the session",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Explains cause and next step.",
+      "related_tools": [
+        "retry_payment",
+        "get_shipping_options",
+        "escalate_to_human"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Third-party App API / Internal Service",
+        "http_method": "GET",
+        "operation": "Error-tracking integration (e.g. Sentry issue lookup) cross-referenced with Storefront cart query for context",
+        "api_version": "provider-specific",
+        "endpoint": "error-tracking provider API + /api/2025-01/graphql.json (cart context)",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "cart_id_or_session_id",
+              "type": "string"
+            }
+          ],
+          "optional": [
+            {
+              "name": "error_context",
+              "type": "string",
+              "description": "Client-reported error message/code"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "recover_abandoned_checkout",
+      "category": "26. Checkout",
+      "sub_intent": "checkout",
+      "description": "Retrieve and resend a link to an abandoned checkout.",
+      "invoke_when": "Customer mentions they started an order but didn't finish.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_email_or_checkout_token": {
+            "type": "string",
+            "description": "customer_email or checkout_token"
+          }
+        },
+        "required": [
+          "customer_email_or_checkout_token"
+        ]
+      },
+      "outputs": "Checkout recovery link",
+      "failure_scenarios": "Checkout expired (inventory/price changed)",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Shares recovery link, notes if prices changed.",
+      "related_tools": [
+        "manage_cart",
+        "generate_checkout_link"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query abandonedCheckouts(first, query: \"email:…\")",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "query",
+              "type": "string",
+              "description": "e.g. \"email:jane@example.com\" or checkout token"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "manage_subscription",
+      "category": "27. Subscriptions",
+      "sub_intent": "subscription",
+      "description": "Pause, skip, cancel, change frequency, or view a recurring subscription.",
+      "invoke_when": "Customer wants to modify a subscription.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_email": {
+            "type": "string",
+            "description": "customer_email"
+          },
+          "action": {
+            "type": "string",
+            "description": "action"
+          },
+          "subscription_id": {
+            "type": "string",
+            "description": "subscription_id"
+          },
+          "new_frequency_days": {
+            "type": "number",
+            "description": "new_frequency_days"
+          }
+        },
+        "required": [
+          "customer_email",
+          "action"
+        ]
+      },
+      "outputs": "Updated subscription state",
+      "failure_scenarios": "Subscription already cancelled/no active subscription",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms new subscription state.",
+      "related_tools": [
+        "update_payment_method",
+        "get_next_billing_date"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "POST/GET",
+        "operation": "Subscription app endpoint (e.g. Recharge PUT /subscriptions/{id}/set_next_charge_date, POST /subscriptions/{id}/cancel; Shopify Subscriptions API SellingPlan objects for native)",
+        "api_version": "app-specific / 2025-01",
+        "endpoint": "app-provided REST endpoint, or Admin GraphQL subscriptionContract mutations",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "customer_email",
+              "type": "string"
+            },
+            {
+              "name": "action",
+              "type": "enum",
+              "description": "pause | skip_next | cancel | change_frequency | view"
+            }
+          ],
+          "optional": [
+            {
+              "name": "subscription_id",
+              "type": "string"
+            },
+            {
+              "name": "new_frequency_days",
+              "type": "int"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get_next_billing_date",
+      "category": "27. Subscriptions",
+      "sub_intent": "subscription",
+      "description": "Return the next scheduled charge date for a subscription.",
+      "invoke_when": "Customer asks when they'll be charged next.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "subscription_id": {
+            "type": "string",
+            "description": "subscription_id"
+          }
+        },
+        "required": [
+          "subscription_id"
+        ]
+      },
+      "outputs": "Next billing date, amount",
+      "failure_scenarios": "Subscription paused (no next date)",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "States next billing date/amount.",
+      "related_tools": [
+        "manage_subscription"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "GET",
+        "operation": "Subscription app endpoint (e.g. Recharge GET /subscriptions/{id})",
+        "api_version": "app-specific",
+        "endpoint": "app-provided REST endpoint",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "subscription_id",
+              "type": "string"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "swap_subscription_product",
+      "category": "27. Subscriptions",
+      "sub_intent": "subscription",
+      "description": "Change the product/variant on a recurring subscription.",
+      "invoke_when": "Customer wants a different item on their next recurring shipment.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "subscription_id": {
+            "type": "string",
+            "description": "subscription_id"
+          },
+          "new_variant_id": {
+            "type": "string",
+            "description": "new_variant_id"
+          }
+        },
+        "required": [
+          "subscription_id",
+          "new_variant_id"
+        ]
+      },
+      "outputs": "Updated subscription contents",
+      "failure_scenarios": "New variant not subscription-eligible",
+      "read_or_write": "write",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms swap and next shipment contents.",
+      "related_tools": [
+        "manage_subscription",
+        "check_product_availability"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "POST",
+        "operation": "Subscription app swap endpoint (e.g. Recharge POST /subscriptions/{id}/swap)",
+        "api_version": "app-specific",
+        "endpoint": "app-provided REST endpoint",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "subscription_id",
+              "type": "string"
+            },
+            {
+              "name": "new_variant_id",
+              "type": "string"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "check_preorder_status",
+      "category": "28. Pre-orders",
+      "sub_intent": "preorder",
+      "description": "Determine if a product is available for pre-order and its expected ship date.",
+      "invoke_when": "Customer asks about a not-yet-released or currently OOS-but-preorderable item.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "product_id_or_title": {
+            "type": "string",
+            "description": "product_id_or_title"
+          }
+        },
+        "required": [
+          "product_id_or_title"
+        ]
+      },
+      "outputs": "Preorder eligible boolean, expected ship date, deposit terms",
+      "failure_scenarios": "Preorder window closed",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "States preorder terms and ETA.",
+      "related_tools": [
+        "get_product",
+        "check_product_availability"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API + Third-party App API",
+        "http_method": "POST/GET",
+        "operation": "query product(id) { metafield(namespace:\"preorder\") } plus preorder app config endpoint (e.g. PreOrder Now)",
+        "api_version": "2025-01 / app-specific",
+        "endpoint": "/admin/api/2025-01/graphql.json + app REST endpoint",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "product_id",
+              "type": "ID"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "get_preorder_order_status",
+      "category": "28. Pre-orders",
+      "sub_intent": "preorder",
+      "description": "Check status of an order that included a pre-ordered item.",
+      "invoke_when": "Customer with a pending preorder asks for an update.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "order_number": {
+            "type": "string",
+            "description": "order_number"
+          }
+        },
+        "required": [
+          "order_number"
+        ]
+      },
+      "outputs": "Expected fulfillment date, deposit/balance status",
+      "failure_scenarios": "Manufacturer delay not yet reflected",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Shares updated ETA.",
+      "related_tools": [
+        "get_order",
+        "track_shipment"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API + Third-party App API",
+        "http_method": "POST",
+        "operation": "query order(id) plus preorder app order-status endpoint",
+        "api_version": "2025-01 / app-specific",
+        "endpoint": "/admin/api/2025-01/graphql.json + app REST endpoint",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "order_id",
+              "type": "ID"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "check_backorder_eta",
+      "category": "29. Backorders",
+      "sub_intent": "backorder",
+      "description": "Get expected restock/ship date for a backordered line item.",
+      "invoke_when": "Order or cart contains a backordered item.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "product_id_or_order_number": {
+            "type": "string",
+            "description": "product_id_or_title or order_number"
+          }
+        },
+        "required": [
+          "product_id_or_order_number"
+        ]
+      },
+      "outputs": "Estimated restock date",
+      "failure_scenarios": "Supplier ETA not provided",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Shares estimated timeline.",
+      "related_tools": [
+        "check_product_availability",
+        "get_order"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API + Internal Service",
+        "http_method": "POST",
+        "operation": "query productVariant(id) { inventoryItem } plus supplier/PO ETA lookup from internal system",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json + internal PO service",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "product_id_or_order_id",
+              "type": "ID"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "offer_backorder_alternatives",
+      "category": "29. Backorders",
+      "sub_intent": "backorder",
+      "description": "Suggest in-stock substitutes for a backordered item.",
+      "invoke_when": "Customer is frustrated with backorder wait and wants alternatives.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "product_id": {
+            "type": "string",
+            "description": "product_id"
+          }
+        },
+        "required": [
+          "product_id"
+        ]
+      },
+      "outputs": "List of similar in-stock products",
+      "failure_scenarios": "No comparable substitute in catalog",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Offers substitute options.",
+      "related_tools": [
+        "recommend_products",
+        "modify_order"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query products(first, query: similarity filter) — typically delegates to search_products/recommend_products internally",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "product_id",
+              "type": "ID"
+            }
+          ],
+          "optional": []
+        }
+      }
+    }
+  ]
+}

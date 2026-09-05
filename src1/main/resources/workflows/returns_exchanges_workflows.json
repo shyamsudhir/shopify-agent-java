@@ -1,0 +1,513 @@
+{
+  "RETURN_POLICY": {
+    "workflow": "RETURN_POLICY",
+    "description": "Determine the return policy applicable to a customer's order or product.",
+    "input": {
+      "customer_id": "required",
+      "order_reference": "optional",
+      "product_reference": "optional"
+    },
+    "steps": [
+      {
+        "id": "resolve_order",
+        "workflow": "ORDER_FETCHING",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "order_reference": "$input.order_reference"
+        },
+        "output": {
+          "order_id": "$result.order_id",
+          "order": "$result.order"
+        }
+      },
+      {
+        "id": "resolve_product",
+        "workflow": "PRODUCT_RESOLUTION",
+        "input": {
+          "order": "$resolve_order.order",
+          "product_reference": "$input.product_reference"
+        },
+        "output": {
+          "product": "$result.product"
+        },
+        "condition": "$input.product_reference != null"
+      },
+      {
+        "id": "load_policy",
+        "workflow": "RETURN_POLICY_LOOKUP",
+        "input": {
+          "order": "$resolve_order.order",
+          "product": "$resolve_product.product"
+        },
+        "output": {
+          "policy": "$result.policy"
+        }
+      },
+      {
+        "id": "evaluate",
+        "workflow": "RETURN_POLICY_EVALUATION",
+        "input": {
+          "order": "$resolve_order.order",
+          "product": "$resolve_product.product",
+          "policy": "$load_policy.policy"
+        },
+        "output": {
+          "eligible": "$result.eligible",
+          "deadline": "$result.deadline",
+          "conditions": "$result.conditions"
+        }
+      }
+    ],
+    "output": {
+      "eligible": "$evaluate.eligible",
+      "deadline": "$evaluate.deadline",
+      "conditions": "$evaluate.conditions",
+      "policy": "$load_policy.policy"
+    }
+  },
+  "RETURN_ELIGIBILITY": {
+    "workflow": "RETURN_ELIGIBILITY",
+    "description": "Check whether a specific order/item is currently eligible for return.",
+    "input": {
+      "customer_id": "required",
+      "order_reference": "required",
+      "product_reference": "optional"
+    },
+    "steps": [
+      {
+        "id": "resolve_order",
+        "workflow": "ORDER_FETCHING",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "order_reference": "$input.order_reference"
+        },
+        "output": {
+          "order": "$result.order"
+        }
+      },
+      {
+        "id": "resolve_product",
+        "workflow": "PRODUCT_RESOLUTION",
+        "input": {
+          "order": "$resolve_order.order",
+          "product_reference": "$input.product_reference"
+        },
+        "output": {
+          "product": "$result.product"
+        },
+        "condition": "$input.product_reference != null"
+      },
+      {
+        "id": "load_policy",
+        "workflow": "RETURN_POLICY_LOOKUP",
+        "input": {
+          "order": "$resolve_order.order",
+          "product": "$resolve_product.product"
+        },
+        "output": {
+          "policy": "$result.policy"
+        }
+      },
+      {
+        "id": "evaluate",
+        "workflow": "RETURN_POLICY_EVALUATION",
+        "input": {
+          "order": "$resolve_order.order",
+          "product": "$resolve_product.product",
+          "policy": "$load_policy.policy"
+        },
+        "output": {
+          "eligible": "$result.eligible",
+          "deadline": "$result.deadline"
+        }
+      }
+    ],
+    "output": {
+      "eligible": "$evaluate.eligible",
+      "deadline": "$evaluate.deadline"
+    }
+  },
+  "RETURN_REQUEST": {
+    "workflow": "RETURN_REQUEST",
+    "description": "Create a new return request for one or more items on an order, after confirming eligibility.",
+    "input": {
+      "customer_id": "required",
+      "order_reference": "required",
+      "line_items": "required",
+      "reason": "required"
+    },
+    "steps": [
+      {
+        "id": "resolve_order",
+        "workflow": "ORDER_FETCHING",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "order_reference": "$input.order_reference"
+        },
+        "output": {
+          "order_id": "$result.order_id",
+          "order": "$result.order"
+        }
+      },
+      {
+        "id": "check_eligibility",
+        "workflow": "RETURN_ELIGIBILITY",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "order_reference": "$input.order_reference"
+        },
+        "output": {
+          "eligible": "$result.eligible"
+        }
+      },
+      {
+        "id": "create_return",
+        "tool": "shopify.return_create",
+        "input": {
+          "order_id": "$resolve_order.order_id",
+          "line_items": "$input.line_items",
+          "reason": "$input.reason"
+        },
+        "condition": "$check_eligibility.eligible == true"
+      }
+    ],
+    "output": {
+      "return_id": "$create_return.return.id",
+      "return": "$create_return.return",
+      "eligible": "$check_eligibility.eligible"
+    }
+  },
+  "RETURN_STATUS": {
+    "workflow": "RETURN_STATUS",
+    "description": "Fetch the current status of an existing return request.",
+    "input": {
+      "customer_id": "required",
+      "return_reference": "required"
+    },
+    "steps": [
+      {
+        "id": "fetch_return",
+        "tool": "shopify.get_return",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "return_reference": "$input.return_reference"
+        }
+      }
+    ],
+    "output": {
+      "return_id": "$fetch_return.return.id",
+      "status": "$fetch_return.return.status"
+    }
+  },
+  "RETURN_LABEL": {
+    "workflow": "RETURN_LABEL",
+    "description": "Generate or retrieve the prepaid shipping label for an approved return.",
+    "input": {
+      "customer_id": "required",
+      "return_reference": "required"
+    },
+    "steps": [
+      {
+        "id": "fetch_return",
+        "tool": "shopify.get_return",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "return_reference": "$input.return_reference"
+        },
+        "output": {
+          "return_id": "$result.return.id",
+          "status": "$result.return.status"
+        }
+      },
+      {
+        "id": "generate_label",
+        "tool": "shopify.return_generate_label",
+        "input": {
+          "return_id": "$fetch_return.return_id"
+        },
+        "condition": "$fetch_return.status == 'approved'"
+      }
+    ],
+    "output": {
+      "label_url": "$generate_label.label.url",
+      "tracking_number": "$generate_label.label.tracking_number"
+    }
+  },
+  "RETURN_ITEMS": {
+    "workflow": "RETURN_ITEMS",
+    "description": "Fetch the line items included in a specific return request.",
+    "input": {
+      "customer_id": "required",
+      "return_reference": "required"
+    },
+    "steps": [
+      {
+        "id": "fetch_return",
+        "tool": "shopify.get_return",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "return_reference": "$input.return_reference"
+        }
+      }
+    ],
+    "output": {
+      "items": "$fetch_return.return.line_items"
+    }
+  },
+  "RETURN_REASON": {
+    "workflow": "RETURN_REASON",
+    "description": "Fetch or classify the reason associated with a return request.",
+    "input": {
+      "customer_id": "required",
+      "return_reference": "required"
+    },
+    "steps": [
+      {
+        "id": "fetch_return",
+        "tool": "shopify.get_return",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "return_reference": "$input.return_reference"
+        }
+      }
+    ],
+    "output": {
+      "reason": "$fetch_return.return.reason",
+      "reason_notes": "$fetch_return.return.reason_notes"
+    }
+  },
+  "EXCHANGE_POLICY": {
+    "workflow": "EXCHANGE_POLICY",
+    "description": "Determine the exchange policy applicable to a customer's order or product.",
+    "input": {
+      "customer_id": "required",
+      "order_reference": "optional",
+      "product_reference": "optional"
+    },
+    "steps": [
+      {
+        "id": "resolve_order",
+        "workflow": "ORDER_FETCHING",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "order_reference": "$input.order_reference"
+        },
+        "output": {
+          "order": "$result.order"
+        }
+      },
+      {
+        "id": "resolve_product",
+        "workflow": "PRODUCT_RESOLUTION",
+        "input": {
+          "order": "$resolve_order.order",
+          "product_reference": "$input.product_reference"
+        },
+        "output": {
+          "product": "$result.product"
+        },
+        "condition": "$input.product_reference != null"
+      },
+      {
+        "id": "load_policy",
+        "workflow": "EXCHANGE_POLICY_LOOKUP",
+        "input": {
+          "order": "$resolve_order.order",
+          "product": "$resolve_product.product"
+        },
+        "output": {
+          "policy": "$result.policy"
+        }
+      },
+      {
+        "id": "evaluate",
+        "workflow": "EXCHANGE_POLICY_EVALUATION",
+        "input": {
+          "order": "$resolve_order.order",
+          "product": "$resolve_product.product",
+          "policy": "$load_policy.policy"
+        },
+        "output": {
+          "eligible": "$result.eligible",
+          "deadline": "$result.deadline",
+          "conditions": "$result.conditions"
+        }
+      }
+    ],
+    "output": {
+      "eligible": "$evaluate.eligible",
+      "deadline": "$evaluate.deadline",
+      "conditions": "$evaluate.conditions",
+      "policy": "$load_policy.policy"
+    }
+  },
+  "EXCHANGE_ELIGIBILITY": {
+    "workflow": "EXCHANGE_ELIGIBILITY",
+    "description": "Check whether a specific order/item is currently eligible for exchange.",
+    "input": {
+      "customer_id": "required",
+      "order_reference": "required",
+      "product_reference": "optional"
+    },
+    "steps": [
+      {
+        "id": "resolve_order",
+        "workflow": "ORDER_FETCHING",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "order_reference": "$input.order_reference"
+        },
+        "output": {
+          "order": "$result.order"
+        }
+      },
+      {
+        "id": "resolve_product",
+        "workflow": "PRODUCT_RESOLUTION",
+        "input": {
+          "order": "$resolve_order.order",
+          "product_reference": "$input.product_reference"
+        },
+        "output": {
+          "product": "$result.product"
+        },
+        "condition": "$input.product_reference != null"
+      },
+      {
+        "id": "load_policy",
+        "workflow": "EXCHANGE_POLICY_LOOKUP",
+        "input": {
+          "order": "$resolve_order.order",
+          "product": "$resolve_product.product"
+        },
+        "output": {
+          "policy": "$result.policy"
+        }
+      },
+      {
+        "id": "evaluate",
+        "workflow": "EXCHANGE_POLICY_EVALUATION",
+        "input": {
+          "order": "$resolve_order.order",
+          "product": "$resolve_product.product",
+          "policy": "$load_policy.policy"
+        },
+        "output": {
+          "eligible": "$result.eligible",
+          "deadline": "$result.deadline"
+        }
+      }
+    ],
+    "output": {
+      "eligible": "$evaluate.eligible",
+      "deadline": "$evaluate.deadline"
+    }
+  },
+  "EXCHANGE_REQUEST": {
+    "workflow": "EXCHANGE_REQUEST",
+    "description": "Create a new exchange request: return the original item(s) and issue replacement item(s), after confirming eligibility.",
+    "input": {
+      "customer_id": "required",
+      "order_reference": "required",
+      "line_items": "required",
+      "replacement_items": "required",
+      "reason": "required"
+    },
+    "steps": [
+      {
+        "id": "resolve_order",
+        "workflow": "ORDER_FETCHING",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "order_reference": "$input.order_reference"
+        },
+        "output": {
+          "order_id": "$result.order_id",
+          "order": "$result.order"
+        }
+      },
+      {
+        "id": "check_eligibility",
+        "workflow": "EXCHANGE_ELIGIBILITY",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "order_reference": "$input.order_reference"
+        },
+        "output": {
+          "eligible": "$result.eligible"
+        }
+      },
+      {
+        "id": "create_return",
+        "tool": "shopify.return_create",
+        "input": {
+          "order_id": "$resolve_order.order_id",
+          "line_items": "$input.line_items",
+          "reason": "$input.reason"
+        },
+        "output": {
+          "return_id": "$result.return.id"
+        },
+        "condition": "$check_eligibility.eligible == true"
+      },
+      {
+        "id": "process_exchange",
+        "tool": "shopify.return_process",
+        "input": {
+          "return_id": "$create_return.return_id",
+          "replacement_items": "$input.replacement_items"
+        },
+        "condition": "$check_eligibility.eligible == true"
+      }
+    ],
+    "output": {
+      "exchange_id": "$process_exchange.exchange.id",
+      "exchange": "$process_exchange.exchange",
+      "eligible": "$check_eligibility.eligible"
+    }
+  },
+  "EXCHANGE_STATUS": {
+    "workflow": "EXCHANGE_STATUS",
+    "description": "Fetch the current status of an existing exchange request.",
+    "input": {
+      "customer_id": "required",
+      "exchange_reference": "required"
+    },
+    "steps": [
+      {
+        "id": "fetch_exchange",
+        "tool": "shopify.get_exchange",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "exchange_reference": "$input.exchange_reference"
+        }
+      }
+    ],
+    "output": {
+      "exchange_id": "$fetch_exchange.exchange.id",
+      "status": "$fetch_exchange.exchange.status"
+    }
+  },
+  "EXCHANGE_ITEMS": {
+    "workflow": "EXCHANGE_ITEMS",
+    "description": "Fetch the original and replacement line items involved in an exchange request.",
+    "input": {
+      "customer_id": "required",
+      "exchange_reference": "required"
+    },
+    "steps": [
+      {
+        "id": "fetch_exchange",
+        "tool": "shopify.get_exchange",
+        "input": {
+          "customer_id": "$input.customer_id",
+          "exchange_reference": "$input.exchange_reference"
+        }
+      }
+    ],
+    "output": {
+      "original_items": "$fetch_exchange.exchange.original_items",
+      "replacement_items": "$fetch_exchange.exchange.replacement_items"
+    }
+  }
+}

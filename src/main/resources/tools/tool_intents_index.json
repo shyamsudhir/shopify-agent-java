@@ -1,0 +1,515 @@
+{
+  "higher_intents": [
+    {
+      "higher_intent": "orders",
+      "file": "tool_intents/orders.json",
+      "description": "Core order lifecycle: status, drafting, fulfillment, shipping, tracking, returns, refunds, exchanges, and cancellations.",
+      "tool_count": 24,
+      "nested_intents": [
+        {
+          "nested_intent": "order_status",
+          "tool_count": 3,
+          "tools": [
+            "get_order",
+            "list_recent_orders",
+            "verify_order_ownership"
+          ]
+        },
+        {
+          "nested_intent": "order_draft",
+          "tool_count": 3,
+          "tools": [
+            "create_draft_order",
+            "send_draft_order_invoice",
+            "convert_draft_to_order"
+          ]
+        },
+        {
+          "nested_intent": "order_fulfillment",
+          "tool_count": 2,
+          "tools": [
+            "get_fulfillment_status",
+            "request_split_shipment_status"
+          ]
+        },
+        {
+          "nested_intent": "order_shipping",
+          "tool_count": 3,
+          "tools": [
+            "get_shipping_options",
+            "update_shipping_address",
+            "get_shipping_policy"
+          ]
+        },
+        {
+          "nested_intent": "order_tracking",
+          "tool_count": 3,
+          "tools": [
+            "track_shipment",
+            "reschedule_delivery",
+            "report_delivery_issue"
+          ]
+        },
+        {
+          "nested_intent": "order_return",
+          "tool_count": 3,
+          "tools": [
+            "check_return_eligibility",
+            "initiate_return",
+            "get_return_status"
+          ]
+        },
+        {
+          "nested_intent": "order_refund",
+          "tool_count": 3,
+          "tools": [
+            "get_refund_status",
+            "issue_refund",
+            "estimate_refund_amount"
+          ]
+        },
+        {
+          "nested_intent": "order_exchange",
+          "tool_count": 2,
+          "tools": [
+            "initiate_exchange",
+            "get_exchange_status"
+          ]
+        },
+        {
+          "nested_intent": "order_cancel",
+          "tool_count": 2,
+          "tools": [
+            "check_cancellation_eligibility",
+            "cancel_order"
+          ]
+        }
+      ]
+    },
+    {
+      "higher_intent": "products",
+      "file": "tool_intents/products.json",
+      "description": "Catalog discovery: search, browsing, comparison, detail lookup, and availability.",
+      "tool_count": 12,
+      "nested_intents": [
+        {
+          "nested_intent": "product_search",
+          "tool_count": 2,
+          "tools": [
+            "search_products",
+            "global_search"
+          ]
+        },
+        {
+          "nested_intent": "product_discovery",
+          "tool_count": 3,
+          "tools": [
+            "recommend_products",
+            "list_collections",
+            "get_collection_products"
+          ]
+        },
+        {
+          "nested_intent": "product_details",
+          "tool_count": 3,
+          "tools": [
+            "get_product",
+            "get_size_fit_guide",
+            "get_product_reviews_summary"
+          ]
+        },
+        {
+          "nested_intent": "product_compare",
+          "tool_count": 1,
+          "tools": [
+            "compare_products"
+          ]
+        },
+        {
+          "nested_intent": "product_availability",
+          "tool_count": 3,
+          "tools": [
+            "check_product_availability",
+            "notify_when_back_in_stock",
+            "check_inventory_across_locations"
+          ]
+        }
+      ]
+    },
+    {
+      "higher_intent": "customer_account",
+      "file": "tool_intents/customer_account.json",
+      "description": "Identity, profile, authentication, addresses, recovery, and account security.",
+      "tool_count": 14,
+      "nested_intents": [
+        {
+          "nested_intent": "customer_profile",
+          "tool_count": 5,
+          "tools": [
+            "get_customer_profile",
+            "create_account",
+            "update_customer_profile",
+            "delete_account",
+            "merge_duplicate_accounts"
+          ]
+        },
+        {
+          "nested_intent": "customer_auth",
+          "tool_count": 3,
+          "tools": [
+            "reset_password",
+            "verify_identity",
+            "resend_verification_code"
+          ]
+        },
+        {
+          "nested_intent": "customer_address",
+          "tool_count": 2,
+          "tools": [
+            "manage_saved_address",
+            "validate_address"
+          ]
+        },
+        {
+          "nested_intent": "account_recovery",
+          "tool_count": 2,
+          "tools": [
+            "recover_account_by_order",
+            "unlock_locked_account"
+          ]
+        },
+        {
+          "nested_intent": "account_security",
+          "tool_count": 2,
+          "tools": [
+            "flag_account_security",
+            "get_order_risk_assessment"
+          ]
+        }
+      ]
+    },
+    {
+      "higher_intent": "payments_promotions",
+      "file": "tool_intents/payments_promotions.json",
+      "description": "Payment transactions, gift cards, discounts, coupons, store credit, loyalty, tax, duties, and currency.",
+      "tool_count": 20,
+      "nested_intents": [
+        {
+          "nested_intent": "payment_status",
+          "tool_count": 3,
+          "tools": [
+            "retry_payment",
+            "update_payment_method",
+            "get_payment_status"
+          ]
+        },
+        {
+          "nested_intent": "gift_card",
+          "tool_count": 3,
+          "tools": [
+            "check_gift_card_balance",
+            "issue_gift_card",
+            "apply_gift_card_to_cart"
+          ]
+        },
+        {
+          "nested_intent": "discount",
+          "tool_count": 2,
+          "tools": [
+            "list_active_discounts",
+            "get_applicable_discounts_for_cart"
+          ]
+        },
+        {
+          "nested_intent": "coupon",
+          "tool_count": 3,
+          "tools": [
+            "validate_coupon",
+            "apply_coupon_to_cart",
+            "issue_goodwill_coupon"
+          ]
+        },
+        {
+          "nested_intent": "store_credit",
+          "tool_count": 2,
+          "tools": [
+            "get_store_credit_balance",
+            "issue_store_credit"
+          ]
+        },
+        {
+          "nested_intent": "loyalty",
+          "tool_count": 3,
+          "tools": [
+            "get_loyalty_balance",
+            "redeem_loyalty_points",
+            "get_loyalty_program_rules"
+          ]
+        },
+        {
+          "nested_intent": "tax",
+          "tool_count": 2,
+          "tools": [
+            "explain_order_tax",
+            "apply_tax_exemption"
+          ]
+        },
+        {
+          "nested_intent": "duties",
+          "tool_count": 1,
+          "tools": [
+            "estimate_duties_and_import_fees"
+          ]
+        },
+        {
+          "nested_intent": "currency",
+          "tool_count": 1,
+          "tools": [
+            "get_price_in_currency"
+          ]
+        }
+      ]
+    },
+    {
+      "higher_intent": "shopping_experience",
+      "file": "tool_intents/shopping_experience.json",
+      "description": "Pre-purchase flow: wishlist, cart, checkout, subscriptions, pre-orders, and backorders.",
+      "tool_count": 12,
+      "nested_intents": [
+        {
+          "nested_intent": "wishlist",
+          "tool_count": 1,
+          "tools": [
+            "manage_wishlist"
+          ]
+        },
+        {
+          "nested_intent": "cart",
+          "tool_count": 2,
+          "tools": [
+            "manage_cart",
+            "generate_checkout_link"
+          ]
+        },
+        {
+          "nested_intent": "checkout",
+          "tool_count": 2,
+          "tools": [
+            "diagnose_checkout_error",
+            "recover_abandoned_checkout"
+          ]
+        },
+        {
+          "nested_intent": "subscription",
+          "tool_count": 3,
+          "tools": [
+            "manage_subscription",
+            "get_next_billing_date",
+            "swap_subscription_product"
+          ]
+        },
+        {
+          "nested_intent": "preorder",
+          "tool_count": 2,
+          "tools": [
+            "check_preorder_status",
+            "get_preorder_order_status"
+          ]
+        },
+        {
+          "nested_intent": "backorder",
+          "tool_count": 2,
+          "tools": [
+            "check_backorder_eta",
+            "offer_backorder_alternatives"
+          ]
+        }
+      ]
+    },
+    {
+      "higher_intent": "content_support_info",
+      "file": "tool_intents/content_support_info.json",
+      "description": "Informational self-service: notifications, reviews, editorial content, policies, contact info, locations, pickup, and localization.",
+      "tool_count": 13,
+      "nested_intents": [
+        {
+          "nested_intent": "notifications",
+          "tool_count": 3,
+          "tools": [
+            "resend_order_confirmation",
+            "resend_shipping_confirmation",
+            "manage_notification_preferences"
+          ]
+        },
+        {
+          "nested_intent": "reviews",
+          "tool_count": 1,
+          "tools": [
+            "submit_product_review"
+          ]
+        },
+        {
+          "nested_intent": "content",
+          "tool_count": 3,
+          "tools": [
+            "search_blog_content",
+            "get_page_content",
+            "search_faq"
+          ]
+        },
+        {
+          "nested_intent": "policy",
+          "tool_count": 1,
+          "tools": [
+            "get_store_policies"
+          ]
+        },
+        {
+          "nested_intent": "contact",
+          "tool_count": 1,
+          "tools": [
+            "get_contact_info"
+          ]
+        },
+        {
+          "nested_intent": "store_location",
+          "tool_count": 1,
+          "tools": [
+            "find_nearest_store"
+          ]
+        },
+        {
+          "nested_intent": "pickup",
+          "tool_count": 2,
+          "tools": [
+            "check_pickup_availability",
+            "get_pickup_ready_status"
+          ]
+        },
+        {
+          "nested_intent": "localization",
+          "tool_count": 1,
+          "tools": [
+            "get_localized_content"
+          ]
+        }
+      ]
+    },
+    {
+      "higher_intent": "enterprise_b2b",
+      "file": "tool_intents/enterprise_b2b.json",
+      "description": "B2B, wholesale, digital products, memberships, custom metafields, and file downloads.",
+      "tool_count": 12,
+      "nested_intents": [
+        {
+          "nested_intent": "b2b_account",
+          "tool_count": 3,
+          "tools": [
+            "get_company_account",
+            "get_negotiated_pricing",
+            "request_credit_terms_status"
+          ]
+        },
+        {
+          "nested_intent": "wholesale",
+          "tool_count": 2,
+          "tools": [
+            "get_bulk_pricing_tiers",
+            "check_minimum_order_requirements"
+          ]
+        },
+        {
+          "nested_intent": "digital_product",
+          "tool_count": 2,
+          "tools": [
+            "resend_digital_download_link",
+            "get_license_key_status"
+          ]
+        },
+        {
+          "nested_intent": "membership",
+          "tool_count": 2,
+          "tools": [
+            "get_membership_status",
+            "manage_membership"
+          ]
+        },
+        {
+          "nested_intent": "metafield",
+          "tool_count": 1,
+          "tools": [
+            "get_custom_metafield"
+          ]
+        },
+        {
+          "nested_intent": "file_download",
+          "tool_count": 2,
+          "tools": [
+            "get_invoice",
+            "get_product_manual"
+          ]
+        }
+      ]
+    },
+    {
+      "higher_intent": "support_escalation",
+      "file": "tool_intents/support_escalation.json",
+      "description": "Human handoff, complaints, live chat transfer, self-facing analytics, and misc utilities.",
+      "tool_count": 10,
+      "nested_intents": [
+        {
+          "nested_intent": "escalation",
+          "tool_count": 3,
+          "tools": [
+            "escalate_to_human",
+            "file_complaint",
+            "check_escalation_status"
+          ]
+        },
+        {
+          "nested_intent": "live_chat",
+          "tool_count": 2,
+          "tools": [
+            "transfer_to_live_agent",
+            "get_queue_wait_estimate"
+          ]
+        },
+        {
+          "nested_intent": "analytics",
+          "tool_count": 2,
+          "tools": [
+            "get_purchase_history_summary",
+            "get_carbon_footprint_estimate"
+          ]
+        },
+        {
+          "nested_intent": "misc",
+          "tool_count": 3,
+          "tools": [
+            "submit_feedback",
+            "get_conversation_transcript",
+            "check_system_status"
+          ]
+        }
+      ]
+    },
+    {
+      "higher_intent": "store_general",
+      "file": "tool_intents/store_general.json",
+      "description": "General storefront metadata.",
+      "tool_count": 2,
+      "nested_intents": [
+        {
+          "nested_intent": "store_info",
+          "tool_count": 2,
+          "tools": [
+            "get_store_info",
+            "get_operating_hours"
+          ]
+        }
+      ]
+    }
+  ],
+  "total_tool_count": 119,
+  "total_higher_intents": 9
+}

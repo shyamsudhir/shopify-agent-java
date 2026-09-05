@@ -1,0 +1,1091 @@
+{
+  "higher_intent": "payments_promotions",
+  "description": "Payment transactions, gift cards, discounts, coupons, store credit, loyalty, tax, duties, and currency.",
+  "tool_count": 20,
+  "tools": [
+    {
+      "name": "retry_payment",
+      "category": "18. Payments",
+      "sub_intent": "payment_status",
+      "description": "Retry payment collection on an order with a failed transaction.",
+      "invoke_when": "Order has a declined/failed payment and customer wants to complete it.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "order_number": {
+            "type": "string",
+            "description": "order_number"
+          },
+          "new_payment_method_token": {
+            "type": "string",
+            "description": "new_payment_method_token"
+          }
+        },
+        "required": [
+          "order_number"
+        ]
+      },
+      "outputs": "Retry result (success/decline reason)",
+      "failure_scenarios": "Card still declines; gateway timeout",
+      "read_or_write": "write",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms success or explains decline reason.",
+      "related_tools": [
+        "get_order",
+        "update_payment_method"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "mutation orderCapture(input: OrderCaptureInput!) or paymentTermsUpdate — actual retry typically via Shopify Payments/PSP token",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "orderId",
+              "type": "ID"
+            }
+          ],
+          "optional": [
+            {
+              "name": "paymentMethodToken",
+              "type": "string",
+              "description": "New/updated tokenized payment method if the retry uses a different card"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "update_payment_method",
+      "category": "18. Payments",
+      "sub_intent": "payment_status",
+      "description": "Update stored payment method (mainly for subscriptions).",
+      "invoke_when": "Customer's card expired/changed and they have active subscriptions.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_email": {
+            "type": "string",
+            "description": "customer_email"
+          },
+          "payment_token": {
+            "type": "string",
+            "description": "payment_token"
+          }
+        },
+        "required": [
+          "customer_email",
+          "payment_token"
+        ]
+      },
+      "outputs": "Update confirmation",
+      "failure_scenarios": "Token invalid/declined on validation charge",
+      "read_or_write": "write",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms new card on file.",
+      "related_tools": [
+        "manage_subscription",
+        "retry_payment"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "POST",
+        "operation": "Subscription-app payment method update (e.g. Recharge PUT /customers/{id}/payment_sources) or Stripe SetupIntent",
+        "api_version": "app-specific",
+        "endpoint": "subscription/payment provider REST endpoint",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "customer_id",
+              "type": "string"
+            },
+            {
+              "name": "payment_token",
+              "type": "string",
+              "description": "Tokenized card from PCI-compliant client-side collection — never raw card data"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "get_payment_status",
+      "category": "18. Payments",
+      "sub_intent": "payment_status",
+      "description": "Check whether a payment on an order succeeded, is pending, or failed.",
+      "invoke_when": "Customer unsure if payment went through.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "order_number": {
+            "type": "string",
+            "description": "order_number"
+          }
+        },
+        "required": [
+          "order_number"
+        ]
+      },
+      "outputs": "Payment status, method, last 4 digits",
+      "failure_scenarios": "Payment gateway webhook delay",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "States payment status.",
+      "related_tools": [
+        "retry_payment",
+        "get_order"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query order(id) { transactions(first) { status, kind, paymentDetails } }",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "id",
+              "type": "ID",
+              "description": "Order GID"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "check_gift_card_balance",
+      "category": "19. Gift Cards",
+      "sub_intent": "gift_card",
+      "description": "Check the remaining balance on a gift card.",
+      "invoke_when": "Customer asks about gift card balance.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "gift_card_code": {
+            "type": "string",
+            "description": "gift_card_code"
+          }
+        },
+        "required": [
+          "gift_card_code"
+        ]
+      },
+      "outputs": "Balance, currency, expiry",
+      "failure_scenarios": "Invalid/expired code",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "States remaining balance.",
+      "related_tools": [
+        "apply_gift_card_to_cart"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query giftCards(first: 1, query: \"code:…\") { balance }",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "code",
+              "type": "string",
+              "description": "Gift card code (last 4 or masked, per PCI-adjacent handling)"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "issue_gift_card",
+      "category": "19. Gift Cards",
+      "sub_intent": "gift_card",
+      "description": "Issue a new gift card (e.g. as goodwill compensation).",
+      "invoke_when": "Support resolution calls for a gift card instead of refund.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_email": {
+            "type": "string",
+            "description": "customer_email"
+          },
+          "amount": {
+            "type": "number",
+            "description": "amount"
+          },
+          "reason": {
+            "type": "string",
+            "description": "reason"
+          },
+          "expiry": {
+            "type": "string",
+            "description": "expiry"
+          }
+        },
+        "required": [
+          "customer_email",
+          "amount"
+        ]
+      },
+      "outputs": "New gift card code + balance",
+      "failure_scenarios": "Amount exceeds authorized goodwill limit",
+      "read_or_write": "write",
+      "human_confirmation_required": true,
+      "customer_visible_followup": "Shares new gift card code.",
+      "related_tools": [
+        "issue_store_credit",
+        "file_complaint"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "mutation giftCardCreate(input: GiftCardCreateInput!) — Shopify Plus / eligible plans only",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "initialValue",
+              "type": "MoneyInput"
+            },
+            {
+              "name": "customerId",
+              "type": "ID"
+            }
+          ],
+          "optional": [
+            {
+              "name": "note",
+              "type": "string"
+            },
+            {
+              "name": "expiresOn",
+              "type": "date"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "apply_gift_card_to_cart",
+      "category": "19. Gift Cards",
+      "sub_intent": "gift_card",
+      "description": "Apply a gift card code to an active cart.",
+      "invoke_when": "Customer wants to redeem a gift card during a chat-assisted checkout.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "cart_id": {
+            "type": "string",
+            "description": "cart_id"
+          },
+          "gift_card_code": {
+            "type": "string",
+            "description": "gift_card_code"
+          }
+        },
+        "required": [
+          "cart_id",
+          "gift_card_code"
+        ]
+      },
+      "outputs": "Updated cart total",
+      "failure_scenarios": "Insufficient balance/invalid code",
+      "read_or_write": "write",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms new cart total.",
+      "related_tools": [
+        "manage_cart",
+        "check_gift_card_balance"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Storefront GraphQL API (Cart)",
+        "http_method": "POST",
+        "operation": "mutation cartGiftCardCodesUpdate(cartId: ID!, giftCardCodes: [String!]!)",
+        "api_version": "2025-01",
+        "endpoint": "/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "cartId",
+              "type": "ID"
+            },
+            {
+              "name": "giftCardCodes",
+              "type": "[String!]"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "list_active_discounts",
+      "category": "20. Discounts",
+      "sub_intent": "discount",
+      "description": "List currently active store-wide discounts and promotions.",
+      "invoke_when": "Customer asks 'is anything on sale' or 'do you have a discount code'.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "description": "category"
+          }
+        },
+        "required": []
+      },
+      "outputs": "List of active promos",
+      "failure_scenarios": "No active promotions",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Shares current promotions.",
+      "related_tools": [
+        "validate_coupon"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query discountNodes(first, query: \"status:active\")",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [],
+          "optional": [
+            {
+              "name": "first",
+              "type": "int"
+            },
+            {
+              "name": "query",
+              "type": "string",
+              "description": "Filter by category/title"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get_applicable_discounts_for_cart",
+      "category": "20. Discounts",
+      "sub_intent": "discount",
+      "description": "Determine which active discounts automatically apply to a given cart.",
+      "invoke_when": "Customer asks why their cart total looks a certain way, or wants best-discount guidance.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "cart_id": {
+            "type": "string",
+            "description": "cart_id"
+          }
+        },
+        "required": [
+          "cart_id"
+        ]
+      },
+      "outputs": "List of applied/applicable discounts",
+      "failure_scenarios": "Discount conflict rules (stacking not allowed)",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Explains applied discounts.",
+      "related_tools": [
+        "manage_cart",
+        "validate_coupon"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Storefront GraphQL API (Cart)",
+        "http_method": "POST",
+        "operation": "query cart(id) { discountCodes { code, applicable }, discountAllocations }",
+        "api_version": "2025-01",
+        "endpoint": "/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "cartId",
+              "type": "ID"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "validate_coupon",
+      "category": "21. Coupons",
+      "sub_intent": "coupon",
+      "description": "Check whether a coupon/discount code is currently valid.",
+      "invoke_when": "Customer provides a code and wants to know if it works / why it failed.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "code"
+          },
+          "cart_id": {
+            "type": "string",
+            "description": "cart_id (for eligibility check)"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "outputs": "Valid boolean, discount details, ineligibility reason",
+      "failure_scenarios": "Code expired, usage limit reached, not applicable to cart contents",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms validity or explains why it failed.",
+      "related_tools": [
+        "apply_coupon_to_cart",
+        "list_active_discounts"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query codeDiscountNodeByCode(code: String!)",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "code",
+              "type": "string"
+            }
+          ],
+          "optional": [
+            {
+              "name": "cartId",
+              "type": "ID",
+              "description": "To check eligibility against current cart contents via Storefront cartDiscountCodesUpdate dry-run"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "apply_coupon_to_cart",
+      "category": "21. Coupons",
+      "sub_intent": "coupon",
+      "description": "Apply a validated coupon code to the active cart.",
+      "invoke_when": "Customer wants the code applied during a chat-assisted purchase.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "cart_id": {
+            "type": "string",
+            "description": "cart_id"
+          },
+          "code": {
+            "type": "string",
+            "description": "code"
+          }
+        },
+        "required": [
+          "cart_id",
+          "code"
+        ]
+      },
+      "outputs": "Updated cart total",
+      "failure_scenarios": "Code invalid at time of apply (race condition)",
+      "read_or_write": "write",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms new total.",
+      "related_tools": [
+        "validate_coupon",
+        "manage_cart"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Storefront GraphQL API (Cart)",
+        "http_method": "POST",
+        "operation": "mutation cartDiscountCodesUpdate(cartId: ID!, discountCodes: [String!]!)",
+        "api_version": "2025-01",
+        "endpoint": "/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "cartId",
+              "type": "ID"
+            },
+            {
+              "name": "discountCodes",
+              "type": "[String!]"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "issue_goodwill_coupon",
+      "category": "21. Coupons",
+      "sub_intent": "coupon",
+      "description": "Generate a one-time discount code as service recovery.",
+      "invoke_when": "Escalation/complaint resolution authorizes a discount instead of refund.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_email": {
+            "type": "string",
+            "description": "customer_email"
+          },
+          "discount_value": {
+            "type": "string",
+            "description": "discount_value"
+          },
+          "expiry": {
+            "type": "string",
+            "description": "expiry"
+          },
+          "min_order_value": {
+            "type": "string",
+            "description": "min_order_value"
+          }
+        },
+        "required": [
+          "customer_email",
+          "discount_value"
+        ]
+      },
+      "outputs": "New coupon code",
+      "failure_scenarios": "Exceeds goodwill authorization limit",
+      "read_or_write": "write",
+      "human_confirmation_required": true,
+      "customer_visible_followup": "Shares new code and terms.",
+      "related_tools": [
+        "file_complaint",
+        "issue_store_credit"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "mutation discountCodeBasicCreate(basicCodeDiscount: DiscountCodeBasicInput!)",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "title",
+              "type": "string"
+            },
+            {
+              "name": "code",
+              "type": "string"
+            },
+            {
+              "name": "customerSelection",
+              "type": "DiscountCustomerSelectionInput",
+              "description": "Restrict to the specific customer"
+            },
+            {
+              "name": "customerGets",
+              "type": "DiscountCustomerGetsInput",
+              "description": "Percentage/fixed amount off"
+            }
+          ],
+          "optional": [
+            {
+              "name": "endsAt",
+              "type": "datetime",
+              "description": "Expiry"
+            },
+            {
+              "name": "minimumRequirement",
+              "type": "DiscountMinimumRequirementInput",
+              "description": "Minimum order value"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get_store_credit_balance",
+      "category": "22. Store Credit",
+      "sub_intent": "store_credit",
+      "description": "Check a customer's store credit balance.",
+      "invoke_when": "Customer asks about their store credit.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_email": {
+            "type": "string",
+            "description": "customer_email"
+          }
+        },
+        "required": [
+          "customer_email"
+        ]
+      },
+      "outputs": "Balance, currency",
+      "failure_scenarios": "No store credit account exists",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "States balance.",
+      "related_tools": [
+        "issue_store_credit"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query customer(id) { storeCreditAccounts(first) { balance } }",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "customerId",
+              "type": "ID"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "issue_store_credit",
+      "category": "22. Store Credit",
+      "sub_intent": "store_credit",
+      "description": "Add store credit to a customer's account (return/refund alternative).",
+      "invoke_when": "Return processed with store-credit refund method chosen, or goodwill gesture.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_email": {
+            "type": "string",
+            "description": "customer_email"
+          },
+          "amount": {
+            "type": "number",
+            "description": "amount"
+          },
+          "reason": {
+            "type": "string",
+            "description": "reason"
+          },
+          "expiry": {
+            "type": "string",
+            "description": "expiry"
+          }
+        },
+        "required": [
+          "customer_email",
+          "amount"
+        ]
+      },
+      "outputs": "New balance confirmation",
+      "failure_scenarios": "Currency mismatch (multi-currency store)",
+      "read_or_write": "write",
+      "human_confirmation_required": true,
+      "customer_visible_followup": "Confirms credit added.",
+      "related_tools": [
+        "issue_refund",
+        "get_store_credit_balance"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "mutation storeCreditAccountCredit(id: ID!, creditInput: StoreCreditAccountCreditInput!)",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "id",
+              "type": "ID",
+              "description": "Store credit account GID (or customerId if creating new)"
+            },
+            {
+              "name": "amount",
+              "type": "MoneyInput"
+            }
+          ],
+          "optional": [
+            {
+              "name": "note",
+              "type": "string"
+            },
+            {
+              "name": "expiresAt",
+              "type": "datetime"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get_loyalty_balance",
+      "category": "23. Loyalty Programs",
+      "sub_intent": "loyalty",
+      "description": "Get a customer's current loyalty/reward points balance and tier.",
+      "invoke_when": "Customer asks about points/rewards status.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_email": {
+            "type": "string",
+            "description": "customer_email"
+          }
+        },
+        "required": [
+          "customer_email"
+        ]
+      },
+      "outputs": "Points balance, tier, next-tier threshold",
+      "failure_scenarios": "Loyalty app not connected for this tenant",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "States balance and tier.",
+      "related_tools": [
+        "redeem_loyalty_points"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "GET",
+        "operation": "Loyalty app balance endpoint (e.g. Smile.io GET /v1/customers/{id}, LoyaltyLion GET /customers/{id})",
+        "api_version": "app-specific",
+        "endpoint": "app-provided REST endpoint",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "customer_email",
+              "type": "string"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "redeem_loyalty_points",
+      "category": "23. Loyalty Programs",
+      "sub_intent": "loyalty",
+      "description": "Redeem points for a reward/discount.",
+      "invoke_when": "Customer wants to use points toward a purchase.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_email": {
+            "type": "string",
+            "description": "customer_email"
+          },
+          "points_amount": {
+            "type": "number",
+            "description": "points_amount"
+          },
+          "reward_id": {
+            "type": "string",
+            "description": "reward_id"
+          }
+        },
+        "required": [
+          "customer_email",
+          "points_amount"
+        ]
+      },
+      "outputs": "Redemption confirmation, resulting discount code",
+      "failure_scenarios": "Insufficient points",
+      "read_or_write": "write",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Confirms redemption and resulting discount.",
+      "related_tools": [
+        "get_loyalty_balance",
+        "apply_coupon_to_cart"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "POST",
+        "operation": "Loyalty app redeem endpoint (e.g. Smile.io POST /v1/rewards/{id}/redeem)",
+        "api_version": "app-specific",
+        "endpoint": "app-provided REST endpoint",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "customer_email",
+              "type": "string"
+            },
+            {
+              "name": "points_amount",
+              "type": "int"
+            }
+          ],
+          "optional": [
+            {
+              "name": "reward_id",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get_loyalty_program_rules",
+      "category": "23. Loyalty Programs",
+      "sub_intent": "loyalty",
+      "description": "Explain how points are earned/tiers work.",
+      "invoke_when": "Customer asks how the loyalty program works.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "outputs": "Program rules summary",
+      "failure_scenarios": "Program rules not configured/published",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Explains program mechanics.",
+      "related_tools": [
+        "get_loyalty_balance"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "GET",
+        "operation": "Loyalty app program-config endpoint, or static CMS/page content",
+        "api_version": "app-specific",
+        "endpoint": "app-provided REST endpoint or Shopify page content",
+        "request_parameters": {
+          "required": [],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "explain_order_tax",
+      "category": "39. Taxes",
+      "sub_intent": "tax",
+      "description": "Break down tax charged on an order (rate, jurisdiction, exemptions).",
+      "invoke_when": "Customer disputes or asks about a tax line item.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "order_number": {
+            "type": "string",
+            "description": "order_number"
+          }
+        },
+        "required": [
+          "order_number"
+        ]
+      },
+      "outputs": "Tax breakdown by jurisdiction/line",
+      "failure_scenarios": "Tax-exempt status not reflected (B2B)",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Explains tax calculation.",
+      "related_tools": [
+        "get_order",
+        "apply_tax_exemption"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "query order(id) { taxLines { title, rate, priceSet } }",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "id",
+              "type": "ID",
+              "description": "Order GID"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "apply_tax_exemption",
+      "category": "39. Taxes",
+      "sub_intent": "tax",
+      "description": "Apply a tax-exempt status/certificate to a customer or order (common in B2B).",
+      "invoke_when": "Customer provides a valid exemption certificate.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_email": {
+            "type": "string",
+            "description": "customer_email"
+          },
+          "certificate_reference": {
+            "type": "string",
+            "description": "certificate_reference"
+          },
+          "order_number": {
+            "type": "string",
+            "description": "order_number"
+          }
+        },
+        "required": [
+          "customer_email",
+          "certificate_reference"
+        ]
+      },
+      "outputs": "Exemption applied confirmation",
+      "failure_scenarios": "Certificate invalid/expired/wrong jurisdiction",
+      "read_or_write": "write",
+      "human_confirmation_required": true,
+      "customer_visible_followup": "Confirms exemption applied.",
+      "related_tools": [
+        "explain_order_tax",
+        "get_company_account"
+      ],
+      "exposure": "Wrapped",
+      "shopify_api": {
+        "source": "Shopify Admin GraphQL API",
+        "http_method": "POST",
+        "operation": "mutation customerUpdate(input: { id, taxExempt: true, taxExemptions: [...] })",
+        "api_version": "2025-01",
+        "endpoint": "/admin/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "customerId",
+              "type": "ID"
+            },
+            {
+              "name": "taxExemptions",
+              "type": "[TaxExemption!]",
+              "description": "Jurisdiction-specific exemption codes"
+            }
+          ],
+          "optional": [
+            {
+              "name": "certificate_reference",
+              "type": "string",
+              "description": "Stored via metafield or external doc-management link"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "estimate_duties_and_import_fees",
+      "category": "40. Duties",
+      "sub_intent": "duties",
+      "description": "Estimate landed cost (duties/import tax) for an international order.",
+      "invoke_when": "International customer asks about extra fees before or after purchase.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "destination_country": {
+            "type": "string",
+            "description": "destination_country"
+          },
+          "cart_id_or_order_number": {
+            "type": "string",
+            "description": "cart_id_or_order_number"
+          }
+        },
+        "required": [
+          "destination_country",
+          "cart_id_or_order_number"
+        ]
+      },
+      "outputs": "Estimated duty/import fee breakdown",
+      "failure_scenarios": "HS codes missing on products (inaccurate estimate)",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Shares estimate and DDP/DDU terms.",
+      "related_tools": [
+        "get_shipping_options",
+        "explain_order_tax"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Third-party App API",
+        "http_method": "POST",
+        "operation": "Duty calculator endpoint (e.g. Zonos POST /landed-cost, or Shopify Markets duties via checkout calculation — limited granularity natively)",
+        "api_version": "provider-specific / 2025-01",
+        "endpoint": "provider REST endpoint",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "destination_country",
+              "type": "string"
+            },
+            {
+              "name": "cart_id_or_order_id",
+              "type": "string"
+            }
+          ],
+          "optional": []
+        }
+      }
+    },
+    {
+      "name": "get_price_in_currency",
+      "category": "41. Multi-Currency",
+      "sub_intent": "currency",
+      "description": "Convert/display product or cart price in customer's preferred currency.",
+      "invoke_when": "Customer shopping from a region with a different currency than store default.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "product_id_or_cart_id": {
+            "type": "string",
+            "description": "product_id_or_cart_id"
+          },
+          "target_currency": {
+            "type": "string",
+            "description": "target_currency"
+          }
+        },
+        "required": [
+          "product_id_or_cart_id",
+          "target_currency"
+        ]
+      },
+      "outputs": "Converted price + as-of exchange rate",
+      "failure_scenarios": "Currency not enabled in Shopify Markets",
+      "read_or_write": "read",
+      "human_confirmation_required": false,
+      "customer_visible_followup": "Shows converted price with disclaimer on rate timing.",
+      "related_tools": [
+        "get_product",
+        "manage_cart"
+      ],
+      "exposure": "Direct",
+      "shopify_api": {
+        "source": "Shopify Storefront GraphQL API",
+        "http_method": "POST",
+        "operation": "query product(id) { priceRange } with @inContext(country: CountryCode) directive (Shopify Markets)",
+        "api_version": "2025-01",
+        "endpoint": "/api/2025-01/graphql.json",
+        "request_parameters": {
+          "required": [
+            {
+              "name": "product_id_or_cart_id",
+              "type": "ID"
+            },
+            {
+              "name": "target_currency",
+              "type": "string (ISO 4217)"
+            }
+          ],
+          "optional": []
+        }
+      }
+    }
+  ]
+}
