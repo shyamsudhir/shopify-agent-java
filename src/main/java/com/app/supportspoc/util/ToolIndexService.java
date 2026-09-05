@@ -38,12 +38,12 @@ public class ToolIndexService {
     private Map<String, Object> unifiedIntentsCache = new HashMap<>();
     @Getter
     private List<IntentRegistryModels.HigherIntentDefinition> higherIntents = new ArrayList<>();
+    /**
+     * -- GETTER --
+     * Raw per-file workflow JSON (filename -> parsed content), as loaded at startup.
+     */
+    @Getter
     private Map<String, Object> workflows = new HashMap<>();
-
-    /** Raw per-file workflow JSON (filename -> parsed content), as loaded at startup. */
-    public Map<String, Object> getWorkflows() {
-        return workflows;
-    }
 
     public ToolIndexService(IntentRegistryLoader registryLoader) {
         this.registryLoader = registryLoader;
@@ -59,7 +59,7 @@ public class ToolIndexService {
 
         this.workflows = registryLoader.loadWorkflows(workflowDirLocation);
 
-        logger.info("Loaded unified intents cache with {} domain files.", fileToolIndex);
+//        logger.info("Loaded unified intents cache with {} domain files.", fileToolIndex);
     }
 
     /**

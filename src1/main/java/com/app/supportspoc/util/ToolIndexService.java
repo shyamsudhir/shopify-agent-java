@@ -54,7 +54,7 @@ public class ToolIndexService {
 
         this.workflows = registryLoader.loadWorkflows(workflowDirLocation);
 
-        logger.info("Loaded unified intents cache with {} domain files.", fileToolIndex);
+//        logger.info("Loaded unified intents cache with {} domain files.", fileToolIndex);
     }
 
     /**

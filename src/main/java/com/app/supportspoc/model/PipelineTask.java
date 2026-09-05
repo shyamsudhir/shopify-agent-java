@@ -26,13 +26,13 @@ public final class PipelineTask {
 
     public String id() { return id; }
 
-    public String intent() { return classification.intent(); }
+    public List<String> intents() { return classification.intents(); }
 
     public List<ToolModel.ExtractedEntity> entities() {
         return classification.entities() != null ? classification.entities() : List.of();
     }
 
-    public String originalTask() { return classification.originalTask(); }
+    public String text() { return classification.text(); }
 
     public String workflowName() { return workflowName; }
     public void setWorkflowName(String workflowName) { this.workflowName = workflowName; }
@@ -58,7 +58,7 @@ public final class PipelineTask {
 
     @Override
     public String toString() {
-        return "PipelineTask{id=" + id + ", intent=" + intent() + ", status=" + status
+        return "PipelineTask{id=" + id + ", intent=" + intents() + ", status=" + status
                 + (blockReason != null ? ", reason=" + blockReason : "") + "}";
     }
 }

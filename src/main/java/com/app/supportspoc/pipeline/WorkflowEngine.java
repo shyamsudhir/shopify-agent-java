@@ -49,6 +49,7 @@ public class WorkflowEngine {
     }
 
     public CompletableFuture<WorkflowResult> execute(String workflowName, Map<String, Object> input, WorkflowExecutionContext ctx) {
+        logger.info("Entering WorkflowEngine.execute: workflowName={}, input={}, ctx={}", workflowName, input, ctx);
         WorkflowSpec spec = workflowRegistry.find(workflowName);
         if (spec == null) {
             return CompletableFuture.completedFuture(WorkflowResult.failed("no workflow registered for '" + workflowName + "'"));
@@ -87,6 +88,8 @@ public class WorkflowEngine {
             Map<String, Map<String, Object>> stepOutputs,
             Map<String, CompletableFuture<Map<String, Object>>> futures,
             WorkflowExecutionContext ctx, List<String> errors, Set<String> knownStepIds) {
+        logger.info("Entering WorkflowEngine.resolveStep: step={}, spec={}, input={}, stepOutputs={}, knownStepIds={}",
+                step != null ? step.id() : null, spec != null ? spec.workflow() : null, input, stepOutputs, knownStepIds);
 
         CompletableFuture<Map<String, Object>> existing = futures.get(step.id());
         if (existing != null) return existing;
@@ -113,6 +116,8 @@ public class WorkflowEngine {
     private CompletableFuture<Map<String, Object>> runStep(
             StepSpec step, Map<String, Object> input, Map<String, Map<String, Object>> stepOutputs,
             WorkflowExecutionContext ctx, List<String> errors) {
+        logger.info("Entering WorkflowEngine.runStep: step={}, input={}, stepOutputs={}",
+                step != null ? step.id() : null, input, stepOutputs);
 
         if (!ReferenceResolver.evaluateCondition(step.condition(), input, stepOutputs)) {
             stepOutputs.put(step.id(), Map.of());
@@ -135,6 +140,8 @@ public class WorkflowEngine {
     private CompletableFuture<Map<String, Object>> runToolStep(
             StepSpec step, Map<String, Object> resolvedInput, Map<String, Map<String, Object>> stepOutputs,
             WorkflowExecutionContext ctx, List<String> errors) {
+        logger.info("Entering WorkflowEngine.runToolStep: step={}, resolvedInput={}, stepOutputs={}",
+                step != null ? step.id() : null, resolvedInput, stepOutputs);
 
         Map<String, Object> toolParams = new LinkedHashMap<>(resolvedInput);
         for (String key : CREDENTIAL_KEYS) {
@@ -167,6 +174,8 @@ public class WorkflowEngine {
     private CompletableFuture<Map<String, Object>> runWorkflowStep(
             StepSpec step, Map<String, Object> resolvedInput, Map<String, Map<String, Object>> stepOutputs,
             WorkflowExecutionContext ctx, List<String> errors) {
+        logger.info("Entering WorkflowEngine.runWorkflowStep: step={}, resolvedInput={}, stepOutputs={}",
+                step != null ? step.id() : null, resolvedInput, stepOutputs);
 
         return execute(step.workflow(), resolvedInput, ctx).thenApply(subResult -> {
             Map<String, Object> published;
@@ -198,6 +207,7 @@ public class WorkflowEngine {
      * before relying on this for anything beyond a single, unambiguous reference.
      */
     private Map<String, Object> resolveEntityStep(Map<String, Object> resolvedInput) {
+        logger.info("Entering WorkflowEngine.resolveEntityStep: resolvedInput={}", resolvedInput);
         Map<String, Object> out = new LinkedHashMap<>();
         resolvedInput.forEach((k, v) -> { if (v != null) out.put(k, v); });
 
@@ -212,10 +222,12 @@ public class WorkflowEngine {
     }
 
     private static java.util.Optional<StepSpec> findStep(WorkflowSpec spec, String id) {
+        logger.info("Entering WorkflowEngine.findStep: spec={}, id={}", spec != null ? spec.workflow() : null, id);
         return spec.steps().stream().filter(s -> s.id().equals(id)).findFirst();
     }
 
     private static String rootMessage(Throwable ex) {
+        logger.info("Entering WorkflowEngine.rootMessage: ex={}", ex != null ? ex.getMessage() : null);
         Throwable cause = ex instanceof CompletionException && ex.getCause() != null ? ex.getCause() : ex;
         return cause.getMessage() != null ? cause.getMessage() : cause.toString();
     }

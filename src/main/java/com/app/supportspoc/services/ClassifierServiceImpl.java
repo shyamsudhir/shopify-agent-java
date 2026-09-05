@@ -32,6 +32,7 @@ public class ClassifierServiceImpl {
         this.llmClient = llmClient;
     }
 
+    // this consumes 400 input tokens
     public CompletableFuture<ClassifierModels.ClassificationDecompositionOutput> classify(
             String message,
             List<Turn> conversationHistory
@@ -103,7 +104,7 @@ public class ClassifierServiceImpl {
             {
               "line_number": 1,
               "text": "Where is my order 1042?",
-              "intents": ["orders"],
+              "intent": <intent name from taxonomy>,
               "route": "TOOL"
             }
           ]

@@ -33,7 +33,7 @@ public class LlmClient {
 
     ObjectMapper objectMapper = new ObjectMapper();
     private static final Logger logger = LoggerFactory.getLogger(LlmClient.class);
-    @Value("${openai.api.key}") String apiKey;
+    String apiKey;
     @Value("${app.embedding-model:text-embedding-3-small}")
     private String embeddingModel;
 //    private final OpenAIClient deepSeekClient = OpenAIOkHttpClient.builder()
@@ -44,7 +44,8 @@ public class LlmClient {
 //            .apiKey(System.getenv("GOOGLE_API_KEY"))
 //    .model("gemini-2.5-flash-lite")
 //            .build();
-    public LlmClient() {
+    public LlmClient(@Value("${openai.api.key}") String apiKey) {
+        this.apiKey = apiKey;
         this.openAIClient = OpenAIOkHttpClient.builder()
                 .apiKey(apiKey)
                 .build();

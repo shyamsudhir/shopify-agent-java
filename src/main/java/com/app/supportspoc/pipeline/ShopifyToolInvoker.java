@@ -81,6 +81,7 @@ public class ShopifyToolInvoker implements ToolInvoker {
 
     @Override
     public CompletableFuture<Map<String, Object>> invoke(String toolName, Map<String, Object> params) {
+        logger.info("Entering ShopifyToolInvoker.invoke: toolName={}, params={}", toolName, params);
         return CompletableFuture.supplyAsync(() -> {
             try {
                 if (mocked) {
@@ -98,6 +99,7 @@ public class ShopifyToolInvoker implements ToolInvoker {
     }
 
     private Map<String, Object> dispatch(String toolName, Map<String, Object> params) throws Exception {
+        logger.info("Entering ShopifyToolInvoker.dispatch: toolName={}, params={}", toolName, params);
         String shopDomain = stringParam(params, "shop_domain");
         String accessToken = stringParam(params, "access_token");
         if (toolName.startsWith("shopify.") && (shopDomain == null || accessToken == null)) {
@@ -196,6 +198,7 @@ public class ShopifyToolInvoker implements ToolInvoker {
     }
 
     private OrderSupportContext fetchOrderContext(String shopDomain, String accessToken, Map<String, Object> params) throws Exception {
+        logger.info("Entering ShopifyToolInvoker.fetchOrderContext: shopDomain={}, accessToken={}, params={}", shopDomain, accessToken != null ? "[PROTECTED]" : null, params);
         String orderRef = firstNonBlank(stringParam(params, "order_id"), stringParam(params, "order_name"), stringParam(params, "order_reference"));
         if (orderRef == null) {
             throw new IllegalArgumentException("get_order requires an order_id/order_reference");
@@ -205,6 +208,7 @@ public class ShopifyToolInvoker implements ToolInvoker {
 
     /** Deterministic, clearly-labelled mock data for local/dev use (shopify.mocked=true). Returns null if no mock is defined for this tool. */
     private Map<String, Object> mockResultFor(String toolName, Map<String, Object> params) {
+        logger.info("Entering ShopifyToolInvoker.mockResultFor: toolName={}, params={}", toolName, params);
         String orderRef = firstNonBlank(stringParam(params, "order_id"), stringParam(params, "order_name"), stringParam(params, "order_reference"));
         return switch (toolName) {
             case "shopify.get_order", "shopify.get_order_context", "shopify.get_order_details" -> Map.of(
@@ -221,21 +225,25 @@ public class ShopifyToolInvoker implements ToolInvoker {
     }
 
     private Map<String, Object> toMap(Object value) {
+        logger.info("Entering ShopifyToolInvoker.toMap(Object): value={}", value);
         if (value == null) return Map.of();
         return objectMapper.convertValue(value, Map.class);
     }
 
     private List<Object> toMap(List<?> values) {
+        logger.info("Entering ShopifyToolInvoker.toMap(List): valuesSize={}", values != null ? values.size() : null);
         if (values == null) return List.of();
         return values.stream().map(v -> (Object) toMap(v)).toList();
     }
 
     private static String stringParam(Map<String, Object> params, String key) {
+        logger.info("Entering ShopifyToolInvoker.stringParam: params={}, key={}", params, key);
         Object value = params.get(key);
         return value != null ? String.valueOf(value) : null;
     }
 
     private static String firstNonBlank(String... values) {
+        logger.info("Entering ShopifyToolInvoker.firstNonBlank: valuesCount={}", values != null ? values.length : 0);
         for (String v : values) {
             if (v != null && !v.isBlank()) return v;
         }
@@ -243,6 +251,7 @@ public class ShopifyToolInvoker implements ToolInvoker {
     }
 
     private static Object nullSafe(Object value) {
+        logger.info("Entering ShopifyToolInvoker.nullSafe: value={}", value);
         return value != null ? value : "";
     }
 

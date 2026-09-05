@@ -33,6 +33,7 @@ public class WorkflowRegistry {
 
     @PostConstruct
     public void init() {
+        logger.info("Entering WorkflowRegistry.init");
         Map<String, Object> rawByFile = toolIndexService.getWorkflows();
         if (rawByFile == null) return;
 
@@ -61,10 +62,12 @@ public class WorkflowRegistry {
     }
 
     public WorkflowSpec find(String workflowName) {
+        logger.info("Entering WorkflowRegistry.find: workflowName={}", workflowName);
         return workflowName != null ? workflowsByName.get(workflowName) : null;
     }
 
     public boolean contains(String workflowName) {
+        logger.info("Entering WorkflowRegistry.contains: workflowName={}", workflowName);
         return workflowName != null && workflowsByName.containsKey(workflowName);
     }
 }

@@ -22,7 +22,7 @@ import java.util.concurrent.CompletableFuture;
 
 
 import org.springframework.beans.factory.annotation.Value;
-import  com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.*;
 import java.util.concurrent.CompletionStage;
@@ -60,10 +60,7 @@ public class ToolRunnerServiceImpl {
     private final WorkflowRegistry workflowRegistry;
     private final WorkflowEngine workflowEngine;
 
-    public ToolRunnerServiceImpl(LlmClient llmClient,
-                                  ShopifyOrderServiceImpl shopifyOrderService,
-                                  WorkflowRegistry workflowRegistry,
-                                  WorkflowEngine workflowEngine) {
+    public ToolRunnerServiceImpl(LlmClient llmClient, ShopifyOrderServiceImpl shopifyOrderService, WorkflowRegistry workflowRegistry, WorkflowEngine workflowEngine) {
         this.llmClient = llmClient;
         this.shopifyOrderService = shopifyOrderService;
         this.workflowRegistry = workflowRegistry;
@@ -71,20 +68,16 @@ public class ToolRunnerServiceImpl {
     }
 
     public CompletableFuture<ToolExecutionResult> runWithTools(Session session, ClassifierModels.ClassificationDecompositionOutput classification) {
-        logger.info("Running tool execution for session_id={} with {} tasks.", session.getSessionId(), classification.lines());
+        logger.info("Entering runWithTools: session={}, classification={}", session != null ? session.getSessionId() : null, classification);
 
-        String originalMessage = classification.lines().stream()
-                .map(ClassifierModels.ClassificationDecompositionOutput.LineItem::text)
-                .collect(Collectors.joining(" "));
+        String originalMessage = classification.lines().stream().map(ClassifierModels.ClassificationDecompositionOutput.LineItem::text).collect(Collectors.joining(" "));
 
         return detailedIntentClassification(classification).thenCompose(decomposition -> {
             if (decomposition == null || decomposition.classifications() == null || decomposition.classifications().isEmpty()) {
-                return CompletableFuture.completedFuture(
-                        new ToolExecutionResult("I could not understand your request. How else can I assist you?", List.of())
-                );
+                return CompletableFuture.completedFuture(new ToolExecutionResult("I could not understand your request. How else can I assist you?", List.of()));
             }
-            logger.info("Decomposition completed for session_id={} with {} classifications.", session.getSessionId(), decomposition.classifications());
 
+            logger.info("Decomposition completed for session_id={} with {} classifications.", session.getSessionId(), decomposition.classifications());
             // Steps 2-6: one PipelineTask per classification; entity resolution and
             // workflow lookup happen inline (ambiguous entities never reach a workflow).
             List<PipelineTask> tasks = buildTasks(decomposition);
@@ -97,59 +90,64 @@ public class ToolRunnerServiceImpl {
             for (PipelineTask task : tasks) {
                 if (task.isTerminal()) continue; // e.g. NEEDS_CUSTOMER_INPUT, or no workflow found
                 Map<String, Object> taskInput = buildTaskInput(task);
-                taskFutures.add(workflowEngine.execute(task.workflowName(), taskInput, ctx)
-                        .thenAccept(result -> applyWorkflowResult(task, result)));
+                taskFutures.add(workflowEngine.execute(task.workflowName(), taskInput, ctx).thenAccept(result -> applyWorkflowResult(task, result)));
             }
 
-            return CompletableFuture.allOf(taskFutures.toArray(new CompletableFuture[0]))
-                    .thenCompose(v -> {
-                        // Step 18: every task now holds a terminal status.
-                        logger.info("session_id={} | task outcomes: {}", session.getSessionId(), tasks);
+            return CompletableFuture.allOf(taskFutures.toArray(new CompletableFuture[0])).thenCompose(v -> {
+                // Step 18: every task now holds a terminal status.
+                logger.info("session_id={} | task outcomes: {}", session.getSessionId(), tasks);
 
-                        // Steps 19-20: verified context in, customer-facing response out.
-                        return generateFinalResponse(originalMessage, tasks).thenApply(responseText -> {
-                            // Step 21: persist.
-                            persist(session, tasks);
-                            List<String> toolCallSummaries = ctx.trace().stream()
-                                    .map(ToolCallTrace::toString)
-                                    .collect(Collectors.toList());
-                            return new ToolExecutionResult(responseText, toolCallSummaries);
-                        });
-                    });
+                // Steps 19-20: verified context in, customer-facing response out.
+                return generateFinalResponse(originalMessage, tasks).thenApply(responseText -> {
+                    // Step 21: persist.
+                    persist(session, tasks);
+                    List<String> toolCallSummaries = ctx.trace().stream().map(ToolCallTrace::toString).collect(Collectors.toList());
+                    return new ToolExecutionResult(responseText, toolCallSummaries);
+                });
+            });
         });
     }
 
-    /** Steps 3-6: builds a task per classification, blocking ambiguous ones (step 4) and resolving intent -> workflow (step 6). */
+    /**
+     * Steps 3-6: builds a task per classification, blocking ambiguous ones (step 4) and resolving intent -> workflow (step 6).
+     */
     private List<PipelineTask> buildTasks(ToolModel.TaskDecompositionOutput decomposition) {
+        logger.info("Entering buildTasks: decomposition={}", decomposition);
         List<PipelineTask> tasks = new ArrayList<>();
         int index = 0;
         for (ToolModel.IntentClassification classification : decomposition.classifications()) {
             PipelineTask task = new PipelineTask("t" + (++index), classification);
-            List<ToolModel.ExtractedEntity> entities = classification.entities() != null
-                    ? classification.entities() : List.of();
+            List<ToolModel.ExtractedEntity> entities = classification.entities() != null ? classification.entities() : List.of();
 
-            List<String> ambiguousKeys = entities.stream()
-                    .filter(e -> e.source() == ToolModel.EntitySource.AMBIGUOUS)
-                    .map(ToolModel.ExtractedEntity::key)
-                    .collect(Collectors.toList());
+            List<String> ambiguousKeys = entities.stream().filter(e -> e.source() == ToolModel.EntitySource.AMBIGUOUS).map(ToolModel.ExtractedEntity::key).collect(Collectors.toList());
 
             if (!ambiguousKeys.isEmpty()) {
                 // Step 4: do not guess -- ask the customer instead.
                 task.block(TaskStatus.NEEDS_CUSTOMER_INPUT, "could not uniquely resolve: " + String.join(", ", ambiguousKeys));
-            } else if (classification.intent() == null || classification.intent().isBlank()) {
+            } else if (classification.intents() == null || classification.intents().isEmpty()) {
                 task.block(TaskStatus.FAILED, "no matching intent found for this request");
-            } else if (!workflowRegistry.contains(classification.intent())) {
-                task.block(TaskStatus.FAILED, "no workflow registered for intent '" + classification.intent() + "'");
             } else {
-                task.setWorkflowName(classification.intent());
+                String matchedWorkflow = classification.intents().stream()
+                        .filter(workflowRegistry::contains)
+                        .findFirst()
+                        .orElse(null);
+
+                if (matchedWorkflow == null) {
+                    task.block(TaskStatus.FAILED, "no workflow registered for intents: " + classification.intents());
+                } else {
+                    task.setWorkflowName(matchedWorkflow);
+                }
             }
             tasks.add(task);
         }
         return tasks;
     }
 
-    /** Step 5: the entities extracted for one task become that workflow's initial input. */
+    /**
+     * Step 5: the entities extracted for one task become that workflow's initial input.
+     */
     private Map<String, Object> buildTaskInput(PipelineTask task) {
+        logger.info("Entering buildTaskInput: task={}", task != null ? task.id() : null);
         Map<String, Object> input = new LinkedHashMap<>();
         for (ToolModel.ExtractedEntity entity : task.entities()) {
             if (entity.value() != null) {
@@ -159,8 +157,11 @@ public class ToolRunnerServiceImpl {
         return input;
     }
 
-    /** Session-level defaults available to every task's workflow (customer id, shop credentials, ...). */
+    /**
+     * Session-level defaults available to every task's workflow (customer id, shop credentials, ...).
+     */
     private Map<String, Object> buildAmbientInput(Session session) {
+        logger.info("Entering buildAmbientInput: session={}", session != null ? session.getSessionId() : null);
         Map<String, Object> ambient = new LinkedHashMap<>();
         if (session.getCustomerEmail() != null) {
             // NOTE: no CUSTOMER_RESOLUTION lookup is wired here yet, so email is the
@@ -179,8 +180,11 @@ public class ToolRunnerServiceImpl {
         return ambient;
     }
 
-    /** Step 18: a successful workflow completes its task; a failed one blocks it, with the real reason attached. */
+    /**
+     * Step 18: a successful workflow completes its task; a failed one blocks it, with the real reason attached.
+     */
     private void applyWorkflowResult(PipelineTask task, WorkflowResult result) {
+        logger.info("Entering applyWorkflowResult: task={}, result={}", task != null ? task.id() : null, result);
         if (result.success()) {
             task.results().putAll(result.output());
             task.setStatus(TaskStatus.COMPLETED);
@@ -189,32 +193,35 @@ public class ToolRunnerServiceImpl {
         }
     }
 
-    /** Step 20: the LLM only ever sees this -- original message plus verified task outcomes, never raw tool payloads or credentials. */
+    /**
+     * Step 20: the LLM only ever sees this -- original message plus verified task outcomes, never raw tool payloads or credentials.
+     */
     private CompletableFuture<String> generateFinalResponse(String originalMessage, List<PipelineTask> tasks) {
+        logger.info("Entering generateFinalResponse: originalMessage={}, tasksCount={}", originalMessage, tasks != null ? tasks.size() : 0);
         String verifiedContextJson = buildVerifiedContextJson(tasks);
         String userPrompt = """
-            <customer_message>
-            %s
-            </customer_message>
-            <verified_execution_context>
-            %s
-            </verified_execution_context>
-            Respond to the customer now, following the rules above.
-            """.formatted(originalMessage, verifiedContextJson);
+                <customer_message>
+                %s
+                </customer_message>
+                <verified_execution_context>
+                %s
+                </verified_execution_context>
+                Respond to the customer now, following the rules above.
+                """.formatted(originalMessage, verifiedContextJson);
 
-        return llmClient.chatCompletion(agentModel, Prompts.FINAL_RESPONSE_SYSTEM_PROMPT, userPrompt)
-                .thenApply(reply -> reply != null && !reply.isBlank()
-                        ? reply
-                        : "I've noted your request, but I'm having trouble putting a response together right now. Could you try again?");
+        return llmClient.chatCompletion(agentModel, Prompts.FINAL_RESPONSE_SYSTEM_PROMPT, userPrompt).thenApply(reply -> reply != null && !reply.isBlank() ? reply : "I've noted your request, but I'm having trouble putting a response together right now. Could you try again?");
     }
 
-    /** Step 19: build verified execution context -- task outcomes only, nothing an LLM could mistake for permission to invent data. */
+    /**
+     * Step 19: build verified execution context -- task outcomes only, nothing an LLM could mistake for permission to invent data.
+     */
     private String buildVerifiedContextJson(List<PipelineTask> tasks) {
+        logger.info("Entering buildVerifiedContextJson: tasksCount={}", tasks != null ? tasks.size() : 0);
         List<Map<String, Object>> taskSummaries = new ArrayList<>();
         for (PipelineTask task : tasks) {
             Map<String, Object> summary = new LinkedHashMap<>();
-            summary.put("task", task.originalTask());
-            summary.put("intent", task.intent());
+            summary.put("task", task.text());
+            summary.put("intent", task.intents());
             summary.put("status", task.status().name());
             if (task.blockReason() != null) summary.put("reason", task.blockReason());
             if (!task.results().isEmpty()) summary.put("result", task.results());
@@ -223,22 +230,15 @@ public class ToolRunnerServiceImpl {
         return finalTasksJson(taskSummaries);
     }
 
-    /** Step 21: persist entities, task/workflow status, and (best-effort) typed session state for the next turn. */
+    /**
+     * Step 21: persist entities, task/workflow status, and (best-effort) typed session state for the next turn.
+     */
     private void persist(Session session, List<PipelineTask> tasks) {
+        logger.info("Entering persist: session={}, tasksCount={}", session != null ? session.getSessionId() : null, tasks != null ? tasks.size() : 0);
         for (int i = 0; i < tasks.size(); i++) {
             PipelineTask task = tasks.get(i);
-            session.addHistory(Map.of(
-                    "task", task.originalTask() != null ? task.originalTask() : "",
-                    "intent", task.intent() != null ? task.intent() : "",
-                    "status", task.status().name()
-            ));
-            session.addStateTransition(new ToolModel.StateTransition(
-                    i,
-                    System.currentTimeMillis(),
-                    task.intent() != null ? List.of(task.intent()) : List.of(),
-                    Map.of(),
-                    Map.copyOf(task.results())
-            ));
+            session.addHistory(Map.of("task", task.text() != null ? task.text() : "", "intent", task.intents() != null ? task.intents() : "", "status", task.status().name()));
+            session.addStateTransition(new ToolModel.StateTransition(i, System.currentTimeMillis(), task.intents() != null ? task.intents() : List.of(), Map.of(), Map.copyOf(task.results())));
         }
         updateTypedSessionState(session, tasks);
     }
@@ -252,6 +252,7 @@ public class ToolRunnerServiceImpl {
      * without further plumbing.
      */
     private void updateTypedSessionState(Session session, List<PipelineTask> tasks) {
+        logger.info("Entering updateTypedSessionState: session={}, tasksCount={}", session != null ? session.getSessionId() : null, tasks != null ? tasks.size() : 0);
         for (PipelineTask task : tasks) {
             Object orderRaw = task.results().get("order");
             if (!(orderRaw instanceof Map<?, ?> orderMap)) continue;
@@ -259,8 +260,7 @@ public class ToolRunnerServiceImpl {
                 Object nameValue = orderMap.get("name") != null ? orderMap.get("name") : orderMap.get("id");
                 if (nameValue == null) continue;
                 String name = String.valueOf(nameValue);
-                String status = orderMap.get("displayFulfillmentStatus") != null
-                        ? String.valueOf(orderMap.get("displayFulfillmentStatus")) : "";
+                String status = orderMap.get("displayFulfillmentStatus") != null ? String.valueOf(orderMap.get("displayFulfillmentStatus")) : "";
                 session.getSessionState().orders.put(name, new SessionState.OrderContext(name, status, List.of()));
                 session.getSessionState().activeTopic = "ORDER";
                 session.getSessionState().activeId = name;
@@ -271,52 +271,32 @@ public class ToolRunnerServiceImpl {
     }
 
     private CompletableFuture<ToolModel.TaskDecompositionOutput> detailedIntentClassification(ClassifierModels.ClassificationDecompositionOutput classification) {
-        return llmClient.callLLM(
-                llmModel,
-                "Decompose and classify customer support requests accurately against the taxonomy.",
-                buildUserPromptForTools(classification.lines().stream().map(ClassifierModels.ClassificationDecompositionOutput.LineItem::text)
-                        .collect(Collectors.joining("\n")),getTaxonomyForEachLine(classification) ),
-                ToolModel.TaskDecompositionOutput.class
-        );
+        logger.info("Entering detailedIntentClassification: classification={}", classification);
+        return llmClient.callLLM(llmModel, "Decompose and classify customer support requests accurately against the taxonomy.", buildUserPromptForTools(classification.lines().stream().map(ClassifierModels.ClassificationDecompositionOutput.LineItem::text).collect(Collectors.joining("\n")), getTaxonomyForEachLine(classification)), ToolModel.TaskDecompositionOutput.class);
     }
 
     private String getTaxonomyForEachLine(ClassifierModels.ClassificationDecompositionOutput classification) {
+        logger.info("Entering getTaxonomyForEachLine: classification={}", classification);
         try {
-            List<ClassifierModels.ClassificationDecompositionOutput.LineItem> enrichedLines = classification.lines().stream()
-                    .map(line -> {
-                        if (line.intents() == null || line.intents().isEmpty()) {
-                            return line;
-                        }
+            List<ClassifierModels.ClassificationDecompositionOutput.SubIntentLineItem> enrichedLines = classification.lines().stream().map(line -> {
+                Set<String> subIntents = new LinkedHashSet<>();
+                String intent = line.getIntent();
+                if (!intent.isBlank()) {
+                    // 1. Get the list of ToolDefinitions for this category/intent key
+                    // Assuming getFileToolIndex() returns Map<String, List<ToolDefinition>>:
+                    List<ToolDefinition> tools = toolIndexService.getFileToolIndex().get(intent);
 
-                        Set<String> expandedIntents = new LinkedHashSet<>();
-                        for (String intent : line.intents()) {
-                            if (intent != null && !intent.isBlank()) {
-                                expandedIntents.add(intent);
-
-                                // 1. Get the list of ToolDefinitions for this category/intent key
-                                // Assuming getFileToolIndex() returns Map<String, List<ToolDefinition>>:
-                                List<ToolDefinition> tools = toolIndexService.getFileToolIndex().get(intent);
-
-                                if (tools != null) {
-                                    // 2. Map ToolDefinition objects to their tool names (Strings)
-                                    for (ToolDefinition tool : tools) {
-                                        if (tool != null && tool.name() != null) {
-                                            expandedIntents.add(tool.name());
-                                        }
-                                    }
-                                }
+                    if (tools != null) {
+                        // 2. Map ToolDefinition objects to their tool names (Strings)
+                        for (ToolDefinition tool : tools) {
+                            if (tool != null && tool.name() != null) {
+                                subIntents.add(tool.name());
                             }
                         }
-
-                        return new ClassifierModels.ClassificationDecompositionOutput.LineItem(
-                                line.lineNumber(),
-                                line.text(),
-                                new ArrayList<>(expandedIntents),
-                                line.route()
-                        );
-                    })
-                    .collect(Collectors.toList());
-
+                    }
+                }
+                return new ClassifierModels.ClassificationDecompositionOutput.SubIntentLineItem(line.lineNumber(), line.text(), new ArrayList<>(subIntents), line.route());
+            }).collect(Collectors.toList());
             // 3. Wrap them into a clean JSON-friendly structure or map
             Map<String, Object> promptPayload = new LinkedHashMap<>();
             promptPayload.put("is_compound", classification.isCompound());
@@ -338,6 +318,7 @@ public class ToolRunnerServiceImpl {
     }
 
     private String finalTasksJson(Object tasks) {
+        logger.info("Entering finalTasksJson: tasks={}", tasks);
         try {
             return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(tasks);
         } catch (Exception e) {
@@ -346,56 +327,58 @@ public class ToolRunnerServiceImpl {
     }
 
     private String buildUserPromptForTools(String history, String taxonomy) {
+        logger.info("Entering buildUserPromptForTools: history={}, taxonomyLength={}", history, taxonomy != null ? taxonomy.length() : 0);
         return """
-            <conversation_context>
-                            %s
-            </conversation_context>
-            <taxonomy>
-            %s
-            </taxonomy>
-            ### Instructions:
-            1. CLASSIFY: For each task, select an `intent` or list of intents strictly matching the provided taxonomy.
-               - If no entry matches, set both to null. Do not invent categories.
-            2. EXTRACT ENTITIES: Extract relevant parameters for each task.
-               - Distinguish CUSTOMER REFERENCES from SYSTEM IDs:
-                 * "the boots" -> key: "product_reference", value: "boots", source: "explicit"
-                 * "order 1042" -> key: "order_id", value: "1042", source: "explicit"
-               - Do NOT invent or infer unmentioned IDs (e.g., product_id, sku, tracking_id).
-               - Use source="context" only if unambiguously resolved from conversation history.
-               - Use source="ambiguous" if referenced but cannot be uniquely resolved.
-            3. DO NOT EXECUTE: Do not check policies, calculate refunds, call tools, or answer the user.
-
-            ### OUTPUT FORMAT:
-                Return ONLY valid JSON. Do not include markdown, explanations, reasoning, or any additional fields.
-                {
-                  "classifications": [
+                <conversation_context>
+                                %s
+                </conversation_context>
+                <taxonomy>
+                %s
+                </taxonomy>
+                ### Instructions:
+                1. CLASSIFY: For each task, select an `intent` or list of intents strictly matching the provided taxonomy.
+                   - If no entry matches, set both to null. Do not invent categories.
+                2. EXTRACT ENTITIES: Extract relevant parameters for each task.
+                   - Distinguish CUSTOMER REFERENCES from SYSTEM IDs:
+                     * "the boots" -> key: "product_reference", value: "boots", source: "explicit"
+                     * "order 1042" -> key: "order_id", value: "1042", source: "explicit"
+                   - Do NOT invent or infer unmentioned IDs (e.g., product_id, sku, tracking_id).
+                   - Use source="context" only if unambiguously resolved from conversation history.
+                   - Use source="ambiguous" if referenced but cannot be uniquely resolved.
+                3. DO NOT EXECUTE: Do not check policies, calculate refunds, call tools, or answer the user.
+                
+                ### OUTPUT FORMAT:
+                    Return ONLY valid JSON. Do not include markdown, explanations, reasoning, or any additional fields.
                     {
-                      "intent": "<intent> or null if no match",
-                      "entities": [
+                      "classifications": [
                         {
-                          "key": "<entity_key>",
-                          "value": "<entity_value>",
-                          "source": "explicit | context | ambiguous".
-                          "description": "<description of the entity in less than 10 words>"
-                        },
-                       "text":<text from taxonomy that corresponds to this classification, for reference>
+                          "intents": "[list of matching intents from taxonomy, or [] if none]",
+                          "entities": [
+                            {
+                              "key": "<entity_key>",
+                              "value": "<entity_value>",
+                              "source": "explicit | context | ambiguous".
+                              "description": "<description of the entity in less than 10 words>"
+                            },
+                           "text":<text from taxonomy that corresponds to this classification, for reference>
+                          ]
+                        }
                       ]
                     }
-                  ]
-                }
-            ### OUTPUT RULES:
-                - Return exactly one classification object for each task in <sub_tasks>, in the same order.
-                - Do not repeat the task text.
-                - Do not add fields not present in the output schema.
-                - Use an empty array `[]` when a task has no entities.
-                - Use `null` for unknown intent or sub_intent.
-                - Never infer an entity that is not explicitly stated or unambiguously resolved from context.
-                - `source="ambiguous"` means the customer reference exists but cannot be uniquely resolved.    
-            Return ONLY valid JSON matching the schema.
-            """.formatted(history, taxonomy);
+                ### OUTPUT RULES:
+                    - Return exactly one classification object for each task in <sub_tasks>, in the same order.
+                    - Do not repeat the task text.
+                    - Do not add fields not present in the output schema.
+                    - Use an empty array `[]` when a task has no entities.
+                    - Use `null` for unknown intent or sub_intent.
+                    - Never infer an entity that is not explicitly stated or unambiguously resolved from context.
+                    - `source="ambiguous"` means the customer reference exists but cannot be uniquely resolved.    
+                Return ONLY valid JSON matching the schema.
+                """.formatted(history, taxonomy);
     }
 
     public CompletableFuture<String> runDirect(Session session, String directSystemPrompt) {
+        logger.info("Entering runDirect: session={}, directSystemPrompt={}", session != null ? session.getSessionId() : null, directSystemPrompt);
         String historyJson;
         try {
             historyJson = session.getHistory().isEmpty() ? "(none)" : objectMapper.writeValueAsString(session.getHistory());
@@ -404,19 +387,13 @@ public class ToolRunnerServiceImpl {
         }
 
         String userPrompt = """
-            <conversation_history>
-            %s
-            </conversation_history>
+                <conversation_history>
+                %s
+                </conversation_history>
+                
+                Please respond directly and helpfully to the customer's latest request.
+                """.formatted(historyJson);
 
-            Please respond directly and helpfully to the customer's latest request.
-            """.formatted(historyJson);
-
-        return llmClient.chatCompletion(
-                agentModel,
-                directSystemPrompt != null && !directSystemPrompt.isBlank()
-                        ? directSystemPrompt
-                        : "You are a helpful, professional customer support agent. Answer the customer's inquiry directly based on the conversation context.",
-                userPrompt
-        ).thenApply(reply -> reply != null ? reply : "");
+        return llmClient.chatCompletion(agentModel, directSystemPrompt != null && !directSystemPrompt.isBlank() ? directSystemPrompt : "You are a helpful, professional customer support agent. Answer the customer's inquiry directly based on the conversation context.", userPrompt).thenApply(reply -> reply != null ? reply : "");
     }
 }

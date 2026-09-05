@@ -72,13 +72,13 @@ public class ToolModel {
 
     public record IntentClassification(
             @JsonPropertyDescription("Matched workflow intent e.g., 'ORDER_TRACKING', 'ORDER_STATUS', 'ORDER_DETAILS', 'RETURN_ELIGIBILITY'")
-            String intent,
+            List<String> intents,
 
             @JsonProperty("sub_intent")
             List<String> subIntents,
 
             List<ExtractedEntity> entities,
-            String originalTask
+            String text
     ) {
     }
 
