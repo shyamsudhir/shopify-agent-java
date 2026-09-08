@@ -1,0 +1,202 @@
+[
+  {
+    "methodName": "fetch_order_by_name",
+    "description": "Retrieves an order using its customer-facing order name or number, e.g. #1042.",
+    "arguments_required": ["orderName"]
+  },
+  {
+    "methodName": "fetch_orders_by_email",
+    "description": "Retrieves orders associated with a customer email address.",
+    "arguments_required": ["email"]
+  },
+  {
+    "methodName": "fetch_orders_by_phone",
+    "description": "Retrieves orders associated with a customer phone number.",
+    "arguments_required": ["phone"]
+  },
+  {
+    "methodName": "fetch_latest_orders",
+    "description": "Retrieves the most recent orders, optionally scoped to a customer.",
+    "arguments_required": ["limit"]
+  },
+  {
+    "methodName": "fetch_order_by_tracking",
+    "description": "Finds the order associated with a shipment tracking number.",
+    "arguments_required": ["trackingNumber"]
+  },
+  {
+    "methodName": "fetch_orders_by_customer",
+    "description": "Retrieves all orders associated with a customer ID.",
+    "arguments_required": ["customerId"]
+  },
+  {
+    "methodName": "fetch_order_by_confirmation_number",
+    "description": "Finds an order using its checkout confirmation number.",
+    "arguments_required": ["confirmationNumber"]
+  },
+  {
+    "methodName": "fetch_order",
+    "description": "Retrieves a specific order by its internal Shopify order ID.",
+    "arguments_required": ["orderId"]
+  },
+  {
+    "methodName": "fetch_orders_by_status",
+    "description": "Filters orders by top-level workflow status: open, closed, or cancelled.",
+    "arguments_required": ["status"]
+  },
+  {
+    "methodName": "fetch_orders_by_fulfillment_status",
+    "description": "Filters orders by fulfillment status, e.g. unfulfilled, partial, or fulfilled.",
+    "arguments_required": ["status"]
+  },
+  {
+    "methodName": "fetch_orders_by_financial_status",
+    "description": "Filters orders by financial/payment status, e.g. paid, refunded, or pending.",
+    "arguments_required": ["status"]
+  },
+  {
+    "methodName": "fetch_orders_in_duration",
+    "description": "Retrieves orders created within a given time range (a single date is just a same-day range).",
+    "arguments_required": ["start", "end"]
+  },
+  {
+    "methodName": "fetch_order_by_tracking_url",
+    "description": "Finds the order associated with a shipment tracking URL.",
+    "arguments_required": ["trackingUrl"]
+  },
+  {
+    "methodName": "fetch_orders_by_sku",
+    "description": "Retrieves orders containing a specific SKU, product, or variant.",
+    "arguments_required": ["sku"]
+  },
+  {
+    "methodName": "fetch_orders_by_discount_code",
+    "description": "Retrieves orders where a specific discount or coupon code was applied.",
+    "arguments_required": ["discountCode"]
+  },
+  {
+    "methodName": "fetch_orders_by_return_status",
+    "description": "Retrieves orders filtered by return status, including orders with any or active returns.",
+    "arguments_required": ["returnStatus"]
+  },
+  {
+    "methodName": "fetch_orders_by_gateway",
+    "description": "Retrieves orders processed through a specific payment gateway.",
+    "arguments_required": ["gateway"]
+  },
+  {
+    "methodName": "fetch_orders_by_transaction",
+    "description": "Retrieves the order associated with a specific payment transaction ID.",
+    "arguments_required": ["transactionId"]
+  },
+  {
+    "methodName": "search_orders",
+    "description": "Searches orders using Shopify's raw order search query syntax.",
+    "arguments_required": ["query"]
+  },
+  {
+    "methodName": "fetch_orders_by_tag",
+    "description": "Retrieves orders tagged with a specific order tag.",
+    "arguments_required": ["tag"]
+  },
+  {
+    "methodName": "fetch_orders_by_note",
+    "description": "Retrieves orders whose order note contains or matches the given text.",
+    "arguments_required": ["note"]
+  },
+  {
+    "methodName": "fetch_orders_by_po_number",
+    "description": "Retrieves orders associated with a purchase order number.",
+    "arguments_required": ["poNumber"]
+  },
+  {
+    "methodName": "fetch_orders_by_created_at",
+    "description": "Retrieves orders matching a specific creation timestamp.",
+    "arguments_required": ["createdAt"]
+  },
+  {
+    "methodName": "fetch_orders_by_processed_at",
+    "description": "Retrieves orders matching a specific payment-processed timestamp.",
+    "arguments_required": ["processedAt"]
+  },
+  {
+    "methodName": "fetch_orders_by_updated_at",
+    "description": "Retrieves orders updated at or since a given timestamp.",
+    "arguments_required": ["updatedAt"]
+  },
+  {
+    "methodName": "fetch_order_by_checkout_token",
+    "description": "Resolves a guest order from its storefront checkout token, without requiring login.",
+    "arguments_required": ["checkoutToken"]
+  },
+  {
+    "methodName": "fetch_orders_by_source_identifier",
+    "description": "Retrieves an order using an external or POS system's source identifier.",
+    "arguments_required": ["sourceIdentifier"]
+  },
+  {
+    "methodName": "fetch_orders_by_customer_and_status",
+    "description": "Retrieves a customer's orders filtered to a specific order status.",
+    "arguments_required": ["customerId", "status"]
+  },
+  {
+    "methodName": "fetch_orders_by_fulfillment_location",
+    "description": "Retrieves orders fulfilled from or assigned to a specific store location.",
+    "arguments_required": ["locationId"]
+  },
+  {
+    "methodName": "fetch_orders_by_shipping_country",
+    "description": "Retrieves orders filtered by shipping destination country or region.",
+    "arguments_required": ["country"]
+  },
+  {
+    "methodName": "fetch_orders_by_risk_level",
+    "description": "Retrieves orders filtered by Shopify's fraud/risk assessment level.",
+    "arguments_required": ["riskLevel"]
+  },
+  {
+    "methodName": "fetch_orders_by_sales_channel",
+    "description": "Retrieves orders originating from a specific sales channel: online store, POS, draft, or app.",
+    "arguments_required": ["salesChannel"]
+  },
+  {
+    "methodName": "fetch_orders_by_currency",
+    "description": "Retrieves orders filtered by transaction currency code.",
+    "arguments_required": ["currency"]
+  },
+  {
+    "methodName": "fetch_orders_by_company",
+    "description": "Retrieves B2B orders tied to a specific company account.",
+    "arguments_required": ["companyId"]
+  },
+  {
+    "methodName": "fetch_draft_orders",
+    "description": "Retrieves draft orders (unconverted carts) rather than placed orders.",
+    "arguments_required": []
+  },
+  {
+    "methodName": "fetch_test_orders",
+    "description": "Retrieves orders flagged as test orders.",
+    "arguments_required": []
+  },
+  {
+    "methodName": "fetch_orders_sorted",
+    "description": "Retrieves orders using a specified sort field and direction.",
+    "arguments_required": ["sortKey"]
+  },
+  {
+    "methodName": "fetch_orders_page",
+    "description": "Retrieves a specific page of orders using cursor-based pagination.",
+    "arguments_required": ["cursor"]
+  },
+  {
+    "methodName": "fetch_orders_by_total_price",
+    "description": "Retrieves orders within a specified total-price range.",
+    "arguments_required": ["minPrice", "maxPrice"]
+  },
+  {
+    "methodName": "fetch_orders_by_item_quantity",
+    "description": "Retrieves orders based on total line-item quantity.",
+    "arguments_required": ["minQuantity", "maxQuantity"]
+  }
+]

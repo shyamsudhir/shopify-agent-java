@@ -35,7 +35,139 @@ public class ShopifyOrderContextService {
     public ShopifyOrderContextService(ShopifyGraphQLClient client) {
         this.client = client;
     }
-
+    private static final String FETCH_ORDER_BY_ID_QUERY = "query {\n" +
+            "  order(id: \"gid://shopify/Order/1234567890\") {\n" +
+            "    id\n" +
+            "    name\n" +
+            "    email\n" +
+            "    displayFinancialStatus\n" +
+            "    displayFulfillmentStatus\n" +
+            "    totalPriceSet {\n" +
+            "      shopMoney {\n" +
+            "        amount\n" +
+            "        currencyCode\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+    private static final String FETCH_LATEST_10_ORDERS = "{\n" +
+            "  orders(first: 10, sortKey: CREATED_AT, reverse: true) {\n" +
+            "    edges {\n" +
+            "      node {\n" +
+            "        id\n" +
+            "        name\n" +
+            "        createdAt\n" +
+            "        email\n" +
+            "        displayFinancialStatus\n" +
+            "        displayFulfillmentStatus\n" +
+            "        totalPriceSet {\n" +
+            "          shopMoney {\n" +
+            "            amount\n" +
+            "            currencyCode\n" +
+            "          }\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+    private static final String FETCH_ORDER_BY_QUERY = "query GetOrderByTokenOrConfirmation($queryString: String!) {\n" +
+            "  orders(first: 1, query: $queryString) {\n" +
+            "    edges {\n" +
+            "      node {\n" +
+            "        id\n" +
+            "        name\n" +
+            "        confirmationNumber\n" +
+            "        checkoutToken\n" +
+            "        createdAt\n" +
+            "        email\n" +
+            "        displayFinancialStatus\n" +
+            "        displayFulfillmentStatus\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+    private static final String DRAFT_ORDER_SEND_INVOICE = "mutation draftOrderInvoiceSend($id: ID!, $email: DraftOrderInvoiceInput) {\n" +
+            "  draftOrderInvoiceSend(id: $id, email: $email) {\n" +
+            "    draftOrder {\n" +
+            "      id\n" +
+            "      status\n" +
+            "    }\n" +
+            "    customerUserErrors {\n" +
+            "      field\n" +
+            "      message\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+    private static final String ORDER_GET_RETURNABLE_DETAILS = "query GetReturnableFulfillments($orderId: ID!) {\n" +
+            "    returnableFulfillments(orderId: $orderId, first: 5) {\n" +
+            "        edges {\n" +
+            "            node {\n" +
+            "                id\n" +
+            "                fulfillment {\n" +
+            "                    id\n" +
+            "                            displayStatus\n" +
+            "                }\n" +
+            "                returnableFulfillmentLineItems(first: 10) {\n" +
+            "                    edges {\n" +
+            "                        node {\n" +
+            "                            quantity\n" +
+            "                            fulfillmentLineItem {\n" +
+            "                                id\n" +
+            "                                lineItem {\n" +
+            "                                    name\n" +
+            "                                            sku\n" +
+            "                                }\n" +
+            "                            }\n" +
+            "                        }\n" +
+            "                    }\n" +
+            "                }\n" +
+            "            }\n" +
+            "        }\n" +
+            "    }\n" +
+            "}";
+    private static final String ORDER_GET_RETURN_FULFILLMENT_DETAILS = "query GetOrderReturns($orderId: ID!) {\n" +
+            "  order(id: $orderId) {\n" +
+            "    id\n" +
+            "    name\n" +
+            "    returns(first: 5) {\n" +
+            "      edges {\n" +
+            "        node {\n" +
+            "          id\n" +
+            "          status\n" +
+            "          name\n" +
+            "          returnLineItems(first: 10) {\n" +
+            "            edges {\n" +
+            "              node {\n" +
+            "                quantity\n" +
+            "                fulfillmentLineItem {\n" +
+            "                  lineItem {\n" +
+            "                    name\n" +
+            "                    sku\n" +
+            "                  }\n" +
+            "                }\n" +
+            "              }\n" +
+            "            }\n" +
+            "          }\n" +
+            "          reverseFulfillmentOrders(first: 5) {\n" +
+            "            edges {\n" +
+            "              node {\n" +
+            "                id\n" +
+            "                status\n" +
+            "                lineItems(first: 10) {\n" +
+            "                  edges {\n" +
+            "                    node {\n" +
+            "                      quantity\n" +
+            "                    }\n" +
+            "                  }\n" +
+            "                }\n" +
+            "              }\n" +
+            "            }\n" +
+            "          }\n" +
+            "        }\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
     private static final String ORDER_SUPPORT_CONTEXT_FIELDS =
             "id name createdAt displayFinancialStatus displayFulfillmentStatus " +
             "cancelledAt cancelReason closed fulfillable restockable refundable statusPageUrl " +
@@ -55,6 +187,14 @@ public class ShopifyOrderContextService {
             "refunds(first: 10) { id createdAt processedAt note totalRefundedSet { shopMoney { amount currencyCode } } } " +
             "returns(first: 10) { edges { node { id name status createdAt totalQuantity } } }";
 
+    private static final String CUSTOM_RETURN_WINDOW = "query GetProductReturnWindow($productId: ID!) {\n" +
+            "  product(id: $productId) {\n" +
+            "    title\n" +
+            "    metafield(namespace: \"custom\", key: \"return_window_days\") {\n" +
+            "      value\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
     public OrderSupportContext getOrderSupportContext(String shopDomain, String accessToken, String orderName, String customerId)
             throws IOException, InterruptedException {
         String endpoint = "https://" + shopDomain + "/admin/api/2026-07/graphql.json";

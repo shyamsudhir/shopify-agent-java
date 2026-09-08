@@ -119,7 +119,7 @@ public class ToolRunnerServiceImpl {
             PipelineTask task = new PipelineTask("t" + (++index), classification);
             List<ToolModel.ExtractedEntity> entities = classification.entities() != null ? classification.entities() : List.of();
 
-            List<String> ambiguousKeys = entities.stream().filter(e -> e.source() == ToolModel.EntitySource.AMBIGUOUS).map(ToolModel.ExtractedEntity::key).collect(Collectors.toList());
+            List<String> ambiguousKeys = entities.stream().map(ToolModel.ExtractedEntity::key).collect(Collectors.toList());
 
             if (!ambiguousKeys.isEmpty()) {
                 // Step 4: do not guess -- ask the customer instead.

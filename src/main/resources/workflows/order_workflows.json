@@ -1,310 +1,265 @@
 {
-  "ORDER_LAST": {
-    "ownership": "verify_order_ownership",
-    "workflow": "ORDER_LAST",
-    "description": "Fetch the customer's most recent order.",
-    "input": {
-      "customer_id": "required"
+  "conventions": {
+    "how_to_read": "For each sub_intent, check its workflows top-to-bottom and run the FIRST one whose trigger_entity (and secondary_entity, if listed) is actually present. Only one workflow fires per turn.",
+    "step_source_legend": {
+      "fetch_manifest": "fetch_order, fetch_order_by_name, fetch_order_by_confirmation_number, fetch_order_by_checkout_token, fetch_order_by_tracking, fetch_order_by_tracking_url, fetch_order_by_transaction, fetch_orders_by_discount_code, fetch_orders_by_po_number, fetch_orders_in_duration, fetch_orders_by_customer, fetch_orders_by_email, fetch_orders_by_phone, fetch_orders_by_sku, fetch_draft_orders, fetch_latest_orders, search_orders — the 40-method order-fetch manifest.",
+      "action_or_check_tool": "verify_order_ownership, check_return_eligibility, check_cancellation_eligibility, get_return_status, estimate_refund_amount, create_draft_order, send_draft_order_invoice, convert_draft_to_order, initiate_return, issue_refund, initiate_exchange, cancel_order, update_shipping_address, reschedule_delivery, report_delivery_issue — from your 24-tool sub-intent list, not the fetch manifest."
     },
-    "steps": [
-      {
-        "id": "fetch_last",
-        "tool": "shopify.get_last_order",
-        "input": {
-          "customer_id": "$input.customer_id"
-        }
-      }
-    ],
-    "output": {
-      "order_id": "$fetch_last.order.id",
-      "order": "$fetch_last.order"
-    }
+    "ownership_proof_rule": "CORRECTED: ownership verification now gates DISCLOSURE, not just mutation. Any workflow that resolves an order via a guessable/observable identifier (orderId, orderName, trackingNumber, trackingUrl, sku, discountCode, poNumber, dateRange) inserts verify_order_ownership right after the fetch and BEFORE the result is used for anything — reading it back to the customer, checking eligibility, or acting on it — and requires a secondary_entity (email or phone) to check against. If no secondary entity was captured, the workflow cannot proceed to disclosure; ask for one first. Identifiers that only the real owner would ever know or possess (confirmationNumber, checkoutToken, transactionId) are treated as self-verifying and skip the extra step. customerId/email/phone used as the PRIMARY resolver (e.g. fetch_orders_by_email) are exempt too, since knowledge of the correct value is itself the access check for that lookup."
   },
-  "ORDER_FETCH": {
-    "workflow": "ORDER_FETCH",
-    "description": "Fetch a specific order by reference (order number, name, or id).",
-    "input": {
-      "customer_id": "required",
-      "order_reference": "required"
-    },
-    "steps": [
-      {
-        "id": "resolve_order",
-        "workflow": "ORDER_FETCHING",
-        "input": {
-          "customer_id": "$input.customer_id",
-          "order_reference": "$input.order_reference"
-        },
-        "output": {
-          "order_id": "$result.order_id",
-          "order": "$result.order"
-        }
-      }
-    ],
-    "output": {
-      "order_id": "$resolve_order.order_id",
-      "order": "$resolve_order.order"
-    }
+  "get_order": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email", "sequence": ["fetch_order", "verify_order_ownership"] },
+      { "trigger_entity": "orderId", "secondary_entity": "phone", "sequence": ["fetch_order", "verify_order_ownership"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email, phone", "sequence": ["fetch_order_by_name", "verify_order_ownership"] },
+      { "trigger_entity": "confirmationNumber", "sequence": ["fetch_order_by_confirmation_number"], "note": "Self-verifying — possession of the code is proof." },
+      { "trigger_entity": "checkoutToken", "sequence": ["fetch_order_by_checkout_token"], "note": "Self-verifying." },
+      { "trigger_entity": "transactionId", "sequence": ["fetch_order_by_transaction"], "note": "Payment-linked, treated as self-verifying." },
+      { "trigger_entity": "trackingNumber", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_tracking", "verify_order_ownership"] },
+      { "trigger_entity": "trackingUrl", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_tracking_url", "verify_order_ownership"] },
+      { "trigger_entity": "discountCode", "secondary_entity": "email or phone", "sequence": ["fetch_orders_by_discount_code", "verify_order_ownership"], "note": "Can return multiple orders — disambiguate to one, then verify against that one." },
+      { "trigger_entity": "poNumber", "secondary_entity": "email or phone", "sequence": ["fetch_orders_by_po_number", "verify_order_ownership"], "note": "B2B — a company-account session identity may substitute for the secondary entity if you have one." },
+      { "trigger_entity": "last",  "sequence": ["fetch_last_order"], "note": "Only valid if customerId can be passed silently from an authenticated session." },
+      { "trigger_entity": "credit_card_last4",  "sequence": ["FETCH_ORDER_BY_QUERY"], "note": "Only valid if customerId can be passed silently from an authenticated session." },
+      { "trigger_entity": "delivery_method",  "sequence": ["FETCH_ORDER_BY_QUERY"], "note": "Only valid if customerId can be passed silently from an authenticated session." },
+      { "trigger_entity": "payment_id",  "sequence": ["FETCH_ORDER_BY_QUERY"], "note": "Only valid if customerId can be passed silently from an authenticated session." },
+      { "trigger_entity": "return_status",  "sequence": ["FETCH_ORDER_BY_QUERY"], "note": "Only valid if customerId can be passed silently from an authenticated session." }
+    ]
   },
-  "ORDER_HISTORY": {
-    "workflow": "ORDER_HISTORY",
-    "description": "Alias workflow for retrieving a customer's order history (delegates to CUSTOMER_ORDER_HISTORY).",
-    "input": {
-      "customer_id": "required",
-      "date_range": "optional",
-      "status_filter": "optional",
-      "limit": "optional"
-    },
-    "steps": [
-      {
-        "id": "fetch_history",
-        "workflow": "CUSTOMER_ORDER_HISTORY",
-        "input": {
-          "customer_id": "$input.customer_id",
-          "date_range": "$input.date_range",
-          "status_filter": "$input.status_filter",
-          "limit": "$input.limit"
-        },
-        "output": {
-          "orders": "$result.orders",
-          "count": "$result.count"
-        }
-      }
-    ],
-    "output": {
-      "orders": "$fetch_history.orders",
-      "count": "$fetch_history.count"
-    }
+  "order_get_return_fulfillment_details": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership", "ORDER_GET_RETURN_FULFILLMENT_DETAILS"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership", "ORDER_GET_RETURN_FULFILLMENT_DETAILS"] }
+    ]
   },
-  "ORDER_DETAILS": {
-    "workflow": "ORDER_DETAILS",
-    "description": "Fetch full order details (line items, totals, addresses, status).",
-    "input": {
-      "customer_id": "required",
-      "order_reference": "optional"
-    },
-    "steps": [
-      {
-        "id": "resolve_order",
-        "workflow": "ORDER_FETCHING",
-        "input": {
-          "customer_id": "$input.customer_id",
-          "order_reference": "$input.order_reference"
-        },
-        "output": {
-          "order_id": "$result.order_id",
-          "order": "$result.order"
-        }
-      },
-      {
-        "id": "fetch",
-        "tool": "shopify.get_order_details",
-        "input": {
-          "order": "$resolve_order.order"
-        }
-      }
-    ],
-    "output": {
-      "order_id": "$resolve_order.order_id",
-      "details": "$fetch.result"
-    }
+  "order_get_returnable_details": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership", "ORDER_GET_RETURNABLE_DETAILS"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership", "ORDER_GET_RETURNABLE_DETAILS"] }
+    ]
   },
-  "ORDER_ITEMS": {
-    "workflow": "ORDER_ITEMS",
-    "description": "Fetch the line items on an order.",
-    "input": {
-      "customer_id": "required",
-      "order_reference": "optional"
-    },
-    "steps": [
-      {
-        "id": "resolve_order",
-        "workflow": "ORDER_FETCHING",
-        "input": {
-          "customer_id": "$input.customer_id",
-          "order_reference": "$input.order_reference"
-        },
-        "output": {
-          "order_id": "$result.order_id",
-          "order": "$result.order"
-        }
-      },
-      {
-        "id": "fetch",
-        "tool": "shopify.get_order_line_items",
-        "input": {
-          "order": "$resolve_order.order"
-        }
-      }
-    ],
-    "output": {
-      "order_id": "$resolve_order.order_id",
-      "items": "$fetch.result"
-    }
+  "custom_return_window": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership", "CUSTOM_RETURN_WINDOW"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership", "CUSTOM_RETURN_WINDOW"] }
+    ]
   },
-  "ORDER_STATUS": {
-    "workflow": "ORDER_STATUS",
-    "description": "Fetch the current status of an order.",
-    "input": {
-      "customer_id": "required",
-      "order_reference": "optional"
-    },
-    "steps": [
-      {
-        "id": "resolve_order",
-        "workflow": "ORDER_FETCHING",
-        "input": {
-          "customer_id": "$input.customer_id",
-          "order_reference": "$input.order_reference"
-        },
-        "output": {
-          "order_id": "$result.order_id",
-          "order": "$result.order"
-        }
-      },
-      {
-        "id": "fetch",
-        "tool": "shopify.get_order_status",
-        "input": {
-          "order": "$resolve_order.order"
-        }
-      }
-    ],
-    "output": {
-      "order_id": "$resolve_order.order_id",
-      "status": "$fetch.result"
-    }
+  "list_recent_orders": {
+    "workflows": [
+      { "trigger_entity": "customerId", "sequence": ["fetch_orders_by_customer"] },
+      { "trigger_entity": "email", "sequence": ["fetch_orders_by_email"] },
+      { "trigger_entity": "phone", "sequence": ["fetch_orders_by_phone"] },
+      { "trigger_entity": "dateRange", "secondary_entity": "customerId or email or phone", "sequence": ["fetch_orders_in_duration"], "note": "A bare date range with no customer scope returns orders storewide — always pair it with a customer identifier." },
+      { "trigger_entity": "none", "sequence": ["fetch_latest_orders"], "note": "Only valid if customerId can be passed silently from an authenticated session." },
+      { "trigger_entity": "previous", "sequence": ["fetch_previous_orders"], "note": "Only valid if customerId can be passed silently from an authenticated session." }
+    ]
   },
-  "ORDER_FULFILLMENT": {
-    "workflow": "ORDER_FULFILLMENT",
-    "description": "Fetch fulfillment details for an order (fulfilled/unfulfilled items, fulfillment location).",
-    "input": {
-      "customer_id": "required",
-      "order_reference": "optional"
-    },
-    "steps": [
-      {
-        "id": "resolve_order",
-        "workflow": "ORDER_FETCHING",
-        "input": {
-          "customer_id": "$input.customer_id",
-          "order_reference": "$input.order_reference"
-        },
-        "output": {
-          "order_id": "$result.order_id",
-          "order": "$result.order"
-        }
-      },
-      {
-        "id": "fetch",
-        "tool": "shopify.get_order_fulfillments",
-        "input": {
-          "order": "$resolve_order.order"
-        }
-      }
-    ],
-    "output": {
-      "order_id": "$resolve_order.order_id",
-      "fulfillments": "$fetch.result"
-    }
+
+  "create_draft_order": {
+    "workflows": [
+      { "trigger_entity": "customerId", "sequence": ["fetch_draft_orders", "create_draft_order", "send_invoice_for_draft_order"] },
+      { "trigger_entity": "email", "sequence": ["fetch_draft_orders", "create_draft_order"] }
+    ]
   },
-  "ORDER_TRACKING": {
-    "workflow": "ORDER_TRACKING",
-    "description": "Fetch tracking numbers and carrier tracking URLs for an order's shipments.",
-    "input": {
-      "customer_id": "required",
-      "order_reference": "optional"
-    },
-    "steps": [
-      {
-        "id": "resolve_order",
-        "workflow": "ORDER_FETCHING",
-        "input": {
-          "customer_id": "$input.customer_id",
-          "order_reference": "$input.order_reference"
-        },
-        "output": {
-          "order_id": "$result.order_id",
-          "order": "$result.order"
-        }
-      },
-      {
-        "id": "fetch",
-        "tool": "shopify.get_order_tracking",
-        "input": {
-          "order": "$resolve_order.order"
-        }
-      }
-    ],
-    "output": {
-      "order_id": "$resolve_order.order_id",
-      "tracking": "$fetch.result"
-    }
+  "send_invoice_for_draft_order": {
+    "workflows": [
+      { "trigger_entity": "customerId", "sequence": ["fetch_draft_orders", "create_draft_order", "send_invoice_for_draft_order"] },
+      { "trigger_entity": "email", "sequence": ["fetch_draft_orders", "create_draft_order"] }
+    ]
   },
-  "ORDER_PAYMENT": {
-    "workflow": "ORDER_PAYMENT",
-    "description": "Fetch payment details for an order (method, status, amounts).",
-    "input": {
-      "customer_id": "required",
-      "order_reference": "optional"
-    },
-    "steps": [
-      {
-        "id": "resolve_order",
-        "workflow": "ORDER_FETCHING",
-        "input": {
-          "customer_id": "$input.customer_id",
-          "order_reference": "$input.order_reference"
-        },
-        "output": {
-          "order_id": "$result.order_id",
-          "order": "$result.order"
-        }
-      },
-      {
-        "id": "fetch",
-        "tool": "shopify.get_order_payment_details",
-        "input": {
-          "order": "$resolve_order.order"
-        }
-      }
-    ],
-    "output": {
-      "order_id": "$resolve_order.order_id",
-      "payment": "$fetch.result"
-    }
+  "send_draft_order_invoice": {
+    "workflows": [
+      { "trigger_entity": "customerId", "sequence": ["fetch_draft_orders", "send_draft_order_invoice"] },
+      { "trigger_entity": "email", "sequence": ["fetch_draft_orders", "send_draft_order_invoice"] }
+    ]
   },
-  "ORDER_SHIPPING": {
-    "workflow": "ORDER_SHIPPING",
-    "description": "Fetch shipping details for an order (method, address, cost, ETA).",
-    "input": {
-      "customer_id": "required",
-      "order_reference": "optional"
-    },
-    "steps": [
-      {
-        "id": "resolve_order",
-        "workflow": "ORDER_FETCHING",
-        "input": {
-          "customer_id": "$input.customer_id",
-          "order_reference": "$input.order_reference"
-        },
-        "output": {
-          "order_id": "$result.order_id",
-          "order": "$result.order"
-        }
-      },
-      {
-        "id": "fetch",
-        "tool": "shopify.get_order_shipping_details",
-        "input": {
-          "order": "$resolve_order.order"
-        }
-      }
+
+  "convert_draft_to_order": {
+    "workflows": [
+      { "trigger_entity": "customerId", "sequence": ["fetch_draft_orders", "convert_draft_to_order"] },
+      { "trigger_entity": "email", "sequence": ["fetch_draft_orders", "convert_draft_to_order"] }
+    ]
+  },
+
+  "get_fulfillment_status": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership"] },
+      { "trigger_entity": "confirmationNumber", "sequence": ["fetch_order_by_confirmation_number"] },
+      { "trigger_entity": "checkoutToken", "sequence": ["fetch_order_by_checkout_token"] },
+      { "trigger_entity": "trackingNumber", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_tracking", "verify_order_ownership"] },
+      { "trigger_entity": "trackingUrl", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_tracking_url", "verify_order_ownership"] }
+    ]
+  },
+
+  "request_split_shipment_status": {
+    "workflows": [
+      { "trigger_entity": "trackingNumber", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_tracking", "verify_order_ownership"] },
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership"] }
+    ]
+  },
+
+  "get_shipping_options": {
+    "workflows": [],
+    "note": "No method in your manifest can serve this — needs a shipping-rates tool, not an order lookup."
+  },
+
+  "update_shipping_address": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership", "update_shipping_address"], "note": "Also gate on the order still being unshipped — no dedicated tool for that check, read it off the fetch result." },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership", "update_shipping_address"] },
+      { "trigger_entity": "confirmationNumber", "sequence": ["fetch_order_by_confirmation_number", "update_shipping_address"], "note": "Self-verifying; still gate on unshipped status." },
+      { "trigger_entity": "checkoutToken", "sequence": ["fetch_order_by_checkout_token", "update_shipping_address"] }
+    ]
+  },
+
+  "get_shipping_policy": {
+    "workflows": [],
+    "note": "Static store content — no method in your manifest can serve this."
+  },
+
+  "track_shipment": {
+    "workflows": [
+      { "trigger_entity": "trackingNumber", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_tracking", "verify_order_ownership"] },
+      { "trigger_entity": "trackingUrl", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_tracking_url", "verify_order_ownership"] },
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership"] },
+      { "trigger_entity": "confirmationNumber", "sequence": ["fetch_order_by_confirmation_number"] },
+      { "trigger_entity": "checkoutToken", "sequence": ["fetch_order_by_checkout_token"] }
+    ]
+  },
+
+  "reschedule_delivery": {
+    "workflows": [
+      { "trigger_entity": "trackingNumber", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_tracking", "verify_order_ownership", "reschedule_delivery"] },
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership", "reschedule_delivery"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership", "reschedule_delivery"] }
+    ]
+  },
+
+  "report_delivery_issue": {
+    "workflows": [
+      { "trigger_entity": "trackingNumber", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_tracking", "verify_order_ownership", "report_delivery_issue"] },
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership", "report_delivery_issue"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership", "report_delivery_issue"] }
+    ]
+  },
+
+  "check_return_eligibility": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership", "check_return_eligibility"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership", "check_return_eligibility"] },
+      { "trigger_entity": "sku", "secondary_entity": "email or phone", "sequence": ["fetch_orders_by_sku", "verify_order_ownership", "check_return_eligibility"] }
+    ]
+  },
+
+  "initiate_return": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership", "check_return_eligibility", "initiate_return"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership", "check_return_eligibility", "initiate_return"] },
+      { "trigger_entity": "sku", "secondary_entity": "email or phone", "sequence": ["fetch_orders_by_sku", "verify_order_ownership", "check_return_eligibility", "initiate_return"] }
+    ]
+  },
+
+  "get_return_status": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership"] }
     ],
-    "output": {
-      "order_id": "$resolve_order.order_id",
-      "shipping": "$fetch.result"
-    }
+    "note": "No returnId entity exists, so this resolves to order level only."
+  },
+
+  "get_refund_status": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership"] },
+      { "trigger_entity": "transactionId", "sequence": ["fetch_order_by_transaction"], "note": "Payment-linked, self-verifying." }
+    ]
+  },
+
+  "issue_refund": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership", "get_return_status", "estimate_refund_amount", "issue_refund"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership", "get_return_status", "estimate_refund_amount", "issue_refund"] },
+      { "trigger_entity": "transactionId", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_transaction", "verify_order_ownership", "get_return_status", "estimate_refund_amount", "issue_refund"], "note": "Money movement — verify even though transactionId is otherwise self-verifying, as defense-in-depth." }
+    ]
+  },
+
+  "estimate_refund_amount": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership", "estimate_refund_amount"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership", "estimate_refund_amount"] }
+    ]
+  },
+
+  "initiate_exchange": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership", "check_return_eligibility", "initiate_exchange"], "note": "Reusing check_return_eligibility as the exchange gate — no dedicated exchange-eligibility tool exists; confirm that's acceptable." },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership", "check_return_eligibility", "initiate_exchange"] },
+      { "trigger_entity": "sku", "secondary_entity": "email or phone", "sequence": ["fetch_orders_by_sku", "verify_order_ownership", "check_return_eligibility", "initiate_exchange"] }
+    ]
+  },
+
+  "get_exchange_status": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership"] }
+    ]
+  },
+
+  "check_cancellation_eligibility": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership", "check_cancellation_eligibility"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership", "check_cancellation_eligibility"] }
+    ]
+  },
+  "cancel_order": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership", "check_cancellation_eligibility", "cancel_order"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership", "check_cancellation_eligibility", "cancel_order"] },
+      { "trigger_entity": "confirmationNumber", "sequence": ["fetch_order_by_confirmation_number", "check_cancellation_eligibility", "cancel_order"], "note": "Self-verifying — ownership step skipped." }
+    ]
+  },
+  "update_order_items": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership", "check_modification_eligibility", "update_order_items"], "note": "Gate on order being unfulfilled or eligible for edits." },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership", "check_modification_eligibility", "update_order_items"] }
+    ]
+  },
+
+  "update_billing_address": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership", "update_billing_address"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership", "update_billing_address"] }
+    ]
+  },
+
+  "retry_failed_payment": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership", "retry_failed_payment"] },
+      { "trigger_entity": "transactionId", "sequence": ["fetch_order_by_transaction", "retry_failed_payment"], "note": "Payment-linked, self-verifying." }
+    ]
+  },
+
+  "apply_discount_code": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership", "apply_discount_code"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership", "apply_discount_code"] }
+    ]
+  },
+
+  "update_customer_contact": {
+    "workflows": [
+      { "trigger_entity": "customerId", "sequence": ["fetch_customer", "update_customer_contact"] },
+      { "trigger_entity": "email", "secondary_entity": "phone", "sequence": ["fetch_customer_by_email", "update_customer_contact"] }
+    ]
+  },
+
+  "hold_or_release_order": {
+    "workflows": [
+      { "trigger_entity": "orderId", "secondary_entity": "email or phone", "sequence": ["fetch_order", "verify_order_ownership", "hold_or_release_order"] },
+      { "trigger_entity": "orderName", "secondary_entity": "email or phone", "sequence": ["fetch_order_by_name", "verify_order_ownership", "hold_or_release_order"] }
+    ]
   }
 }
